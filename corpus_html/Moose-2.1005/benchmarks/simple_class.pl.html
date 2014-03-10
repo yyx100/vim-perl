@@ -1,0 +1,43 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html>
+ <head>
+  <title>[untitled]</title>
+  <link rel="stylesheet" type="text/css" href="../../t/vim_syntax.css" />
+ </head>
+ <body>
+
+<pre><span class="synPreProc">#!/usr/bin/perl</span>
+
+<span class="synStatement">use strict</span>;
+<span class="synStatement">use warnings</span>;
+
+<span class="synStatement">use </span>Benchmark::Forking <span class="synString">qw[cmpthese]</span>;
+
+<span class="synStatement">=pod</span>
+
+<span class="synperlPOD">This compares the burden of a basic Moose</span>
+<span class="synperlPOD">class to a basic Class::MOP class.</span>
+
+<span class="synperlPOD">It is worth noting that the basic Moose</span>
+<span class="synperlPOD">class will also create a type constraint</span>
+<span class="synperlPOD">as well as export many subs, so this comparison</span>
+<span class="synperlPOD">is really not fair :)</span>
+
+<span class="synStatement">=cut</span>
+
+cmpthese(<span class="synNumber">5_000</span>,
+    {
+        <span class="synString">'w/out_moose'</span> =&gt; <span class="synKeyword">sub </span>{
+            <span class="synStatement">eval</span> <span class="synString">'package Bar; use metaclass;'</span>;
+        },
+        <span class="synString">'w_moose'</span> =&gt; <span class="synKeyword">sub </span>{
+            <span class="synStatement">eval</span> <span class="synString">'package Baz; use Moose;'</span>;
+        },
+    }
+);
+
+<span class="synNumber">1</span>;
+</pre>
+
+ </body>
+</html>

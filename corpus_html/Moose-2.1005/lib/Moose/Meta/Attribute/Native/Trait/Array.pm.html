@@ -1,0 +1,355 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html>
+ <head>
+  <title>[untitled]</title>
+  <link rel="stylesheet" type="text/css" href="../../t/vim_syntax.css" />
+ </head>
+ <body>
+
+<pre>
+<span class="synStatement">package</span><span class="synType"> Moose::Meta::Attribute::Native::Trait::Array</span>;
+<span class="synPreProc">BEGIN </span>{
+  <span class="synIdentifier">$</span><span class="synType">Moose::Meta::Attribute::Native::Trait::Array::</span><span class="synIdentifier">AUTHORITY</span> = <span class="synString">'cpan:STEVAN'</span>;
+}
+{
+  <span class="synIdentifier">$</span><span class="synType">Moose::Meta::Attribute::Native::Trait::Array::</span><span class="synIdentifier">VERSION</span> = <span class="synString">'2.1005'</span>;
+}
+<span class="synStatement">use </span>Moose::Role;
+
+with <span class="synString">'Moose::Meta::Attribute::Native::Trait'</span>;
+
+<span class="synKeyword">sub </span><span class="synFunction">_helper_type </span>{ <span class="synString">'ArrayRef'</span> }
+
+<span class="synStatement">no </span>Moose::Role;
+
+<span class="synNumber">1</span>;
+
+<span class="synComment"># ABSTRACT: Helper trait for ArrayRef attributes</span>
+
+<span class="synComment">__END__</span>
+
+<span class="synStatement">=pod</span>
+
+<span class="synStatement">=head1</span><span class="synString"> NAME</span>
+
+<span class="synperlPOD">Moose::Meta::Attribute::Native::Trait::Array - Helper trait for ArrayRef attributes</span>
+
+<span class="synStatement">=head1</span><span class="synString"> VERSION</span>
+
+<span class="synperlPOD">version 2.1005</span>
+
+<span class="synStatement">=head1</span><span class="synString"> SYNOPSIS</span>
+
+<span class="synPreProc">    package Stuff;</span>
+<span class="synPreProc">    use Moose;</span>
+
+<span class="synPreProc">    has 'options' =&gt; (</span>
+<span class="synPreProc">        traits  =&gt; ['Array'],</span>
+<span class="synPreProc">        is      =&gt; 'ro',</span>
+<span class="synPreProc">        isa     =&gt; 'ArrayRef[Str]',</span>
+<span class="synPreProc">        default =&gt; sub { [] },</span>
+<span class="synPreProc">        handles =&gt; {</span>
+<span class="synPreProc">            all_options    =&gt; 'elements',</span>
+<span class="synPreProc">            add_option     =&gt; 'push',</span>
+<span class="synPreProc">            map_options    =&gt; 'map',</span>
+<span class="synPreProc">            filter_options =&gt; 'grep',</span>
+<span class="synPreProc">            find_option    =&gt; 'first',</span>
+<span class="synPreProc">            get_option     =&gt; 'get',</span>
+<span class="synPreProc">            join_options   =&gt; 'join',</span>
+<span class="synPreProc">            count_options  =&gt; 'count',</span>
+<span class="synPreProc">            has_options    =&gt; 'count',</span>
+<span class="synPreProc">            has_no_options =&gt; 'is_empty',</span>
+<span class="synPreProc">            sorted_options =&gt; 'sort',</span>
+<span class="synPreProc">        },</span>
+<span class="synPreProc">    );</span>
+
+<span class="synPreProc">    no Moose;</span>
+<span class="synPreProc">    1;</span>
+
+<span class="synStatement">=head1</span><span class="synString"> DESCRIPTION</span>
+
+<span class="synperlPOD">This trait provides native delegation methods for array references.</span>
+
+<span class="synStatement">=head1</span><span class="synString"> DEFAULT TYPE</span>
+
+<span class="synperlPOD">If you don't provide an </span><span class="synIdentifier">C&lt;isa&gt;</span><span class="synperlPOD"> value for your attribute, it will default to</span>
+<span class="synIdentifier">C&lt;ArrayRef&gt;</span><span class="synperlPOD">.</span>
+
+<span class="synStatement">=head1</span><span class="synString"> PROVIDED METHODS</span>
+
+<span class="synStatement">=over</span><span class="synperlPOD"> </span><span class="synNumber">4</span>
+
+<span class="synStatement">=item</span><span class="synString"> * </span><span class="synIdentifier">B&lt;count&gt;</span>
+
+<span class="synperlPOD">Returns the number of elements in the array.</span>
+
+<span class="synPreProc">  $stuff = Stuff-&gt;new;</span>
+<span class="synPreProc">  $stuff-&gt;options( [ &quot;foo&quot;, &quot;bar&quot;, &quot;baz&quot;, &quot;boo&quot; ] );</span>
+
+<span class="synPreProc">  print $stuff-&gt;count_options; # prints 4</span>
+
+<span class="synperlPOD">This method does not accept any arguments.</span>
+
+<span class="synStatement">=item</span><span class="synString"> * </span><span class="synIdentifier">B&lt;is_empty&gt;</span>
+
+<span class="synperlPOD">Returns a boolean value that is true when the array has no elements.</span>
+
+<span class="synPreProc">  $stuff-&gt;has_no_options ? die &quot;No options!\n&quot; : print &quot;Good boy.\n&quot;;</span>
+
+<span class="synperlPOD">This method does not accept any arguments.</span>
+
+<span class="synStatement">=item</span><span class="synString"> * </span><span class="synIdentifier">B&lt;elements&gt;</span>
+
+<span class="synperlPOD">Returns all of the elements of the array as an array (not an array reference).</span>
+
+<span class="synPreProc">  my @option = $stuff-&gt;all_options;</span>
+<span class="synPreProc">  print &quot;@options\n&quot;;    # prints &quot;foo bar baz boo&quot;</span>
+
+<span class="synperlPOD">This method does not accept any arguments.</span>
+
+<span class="synStatement">=item</span><span class="synString"> * </span><span class="synIdentifier">B&lt;get($index)&gt;</span>
+
+<span class="synperlPOD">Returns an element of the array by its index. You can also use negative index</span>
+<span class="synperlPOD">numbers, just as with Perl's core array handling.</span>
+
+<span class="synPreProc">  my $option = $stuff-&gt;get_option(1);</span>
+<span class="synPreProc">  print &quot;$option\n&quot;;    # prints &quot;bar&quot;</span>
+
+<span class="synperlPOD">If the specified element does not exist, this will return </span><span class="synIdentifier">C&lt;undef&gt;</span><span class="synperlPOD">.</span>
+
+<span class="synperlPOD">This method accepts just one argument.</span>
+
+<span class="synStatement">=item</span><span class="synString"> * </span><span class="synIdentifier">B&lt;pop&gt;</span>
+
+<span class="synperlPOD">Just like Perl's builtin </span><span class="synIdentifier">C&lt;pop&gt;</span><span class="synperlPOD">.</span>
+
+<span class="synperlPOD">This method does not accept any arguments.</span>
+
+<span class="synStatement">=item</span><span class="synString"> * </span><span class="synIdentifier">B&lt;push($value1, $value2, value3 ...)&gt;</span>
+
+<span class="synperlPOD">Just like Perl's builtin </span><span class="synIdentifier">C&lt;push&gt;</span><span class="synperlPOD">. Returns the number of elements in the new</span>
+<span class="synperlPOD">array.</span>
+
+<span class="synperlPOD">This method accepts any number of arguments.</span>
+
+<span class="synStatement">=item</span><span class="synString"> * </span><span class="synIdentifier">B&lt;shift&gt;</span>
+
+<span class="synperlPOD">Just like Perl's builtin </span><span class="synIdentifier">C&lt;shift&gt;</span><span class="synperlPOD">.</span>
+
+<span class="synperlPOD">This method does not accept any arguments.</span>
+
+<span class="synStatement">=item</span><span class="synString"> * </span><span class="synIdentifier">B&lt;unshift($value1, $value2, value3 ...)&gt;</span>
+
+<span class="synperlPOD">Just like Perl's builtin </span><span class="synIdentifier">C&lt;unshift&gt;</span><span class="synperlPOD">. Returns the number of elements in the new</span>
+<span class="synperlPOD">array.</span>
+
+<span class="synperlPOD">This method accepts any number of arguments.</span>
+
+<span class="synStatement">=item</span><span class="synString"> * </span><span class="synIdentifier">B&lt;splice($offset, $length, @values)&gt;</span>
+
+<span class="synperlPOD">Just like Perl's builtin </span><span class="synIdentifier">C&lt;splice&gt;</span><span class="synperlPOD">. In scalar context, this returns the last</span>
+<span class="synperlPOD">element removed, or </span><span class="synIdentifier">C&lt;undef&gt;</span><span class="synperlPOD"> if no elements were removed. In list context,</span>
+<span class="synperlPOD">this returns all the elements removed from the array.</span>
+
+<span class="synperlPOD">This method requires at least one argument.</span>
+
+<span class="synStatement">=item</span><span class="synString"> * </span><span class="synIdentifier">B&lt;first( sub { ... } )&gt;</span>
+
+<span class="synperlPOD">This method returns the first matching item in the array, just like</span>
+<span class="synIdentifier">L&lt;List::Util&gt;</span><span class="synperlPOD">'s </span><span class="synIdentifier">C&lt;first&gt;</span><span class="synperlPOD"> function. The matching is done with a subroutine</span>
+<span class="synperlPOD">reference you pass to this method. The subroutine will be called against each</span>
+<span class="synperlPOD">element in the array until one matches or all elements have been checked.</span>
+
+<span class="synPreProc">  my $found = $stuff-&gt;find_option( sub {/^b/} );</span>
+<span class="synPreProc">  print &quot;$found\n&quot;;    # prints &quot;bar&quot;</span>
+
+<span class="synperlPOD">This method requires a single argument.</span>
+
+<span class="synStatement">=item</span><span class="synString"> * </span><span class="synIdentifier">B&lt;first_index( sub { ... } )&gt;</span>
+
+<span class="synperlPOD">This method returns the index of the first matching item in the array, just</span>
+<span class="synperlPOD">like </span><span class="synIdentifier">L&lt;List::MoreUtils&gt;</span><span class="synperlPOD">'s </span><span class="synIdentifier">C&lt;first_index&gt;</span><span class="synperlPOD"> function. The matching is done with a</span>
+<span class="synperlPOD">subroutine reference you pass to this method. The subroutine will be called</span>
+<span class="synperlPOD">against each element in the array until one matches or all elements have been</span>
+<span class="synperlPOD">checked.</span>
+
+<span class="synperlPOD">This method requires a single argument.</span>
+
+<span class="synStatement">=item</span><span class="synString"> * </span><span class="synIdentifier">B&lt;grep( sub { ... } )&gt;</span>
+
+<span class="synperlPOD">This method returns every element matching a given criteria, just like Perl's</span>
+<span class="synperlPOD">core </span><span class="synIdentifier">C&lt;grep&gt;</span><span class="synperlPOD"> function. This method requires a subroutine which implements the</span>
+<span class="synperlPOD">matching logic.</span>
+
+<span class="synPreProc">  my @found = $stuff-&gt;filter_options( sub {/^b/} );</span>
+<span class="synPreProc">  print &quot;@found\n&quot;;    # prints &quot;bar baz boo&quot;</span>
+
+<span class="synperlPOD">This method requires a single argument.</span>
+
+<span class="synStatement">=item</span><span class="synString"> * </span><span class="synIdentifier">B&lt;map( sub { ... } )&gt;</span>
+
+<span class="synperlPOD">This method transforms every element in the array and returns a new array,</span>
+<span class="synperlPOD">just like Perl's core </span><span class="synIdentifier">C&lt;map&gt;</span><span class="synperlPOD"> function. This method requires a subroutine which</span>
+<span class="synperlPOD">implements the transformation.</span>
+
+<span class="synPreProc">  my @mod_options = $stuff-&gt;map_options( sub { $_ . &quot;-tag&quot; } );</span>
+<span class="synPreProc">  print &quot;@mod_options\n&quot;;    # prints &quot;foo-tag bar-tag baz-tag boo-tag&quot;</span>
+
+<span class="synperlPOD">This method requires a single argument.</span>
+
+<span class="synStatement">=item</span><span class="synString"> * </span><span class="synIdentifier">B&lt;reduce( sub { ... } )&gt;</span>
+
+<span class="synperlPOD">This method turns an array into a single value, by passing a function the</span>
+<span class="synperlPOD">value so far and the next value in the array, just like </span><span class="synIdentifier">L&lt;List::Util&gt;</span><span class="synperlPOD">'s</span>
+<span class="synIdentifier">C&lt;reduce&gt;</span><span class="synperlPOD"> function. The reducing is done with a subroutine reference you pass</span>
+<span class="synperlPOD">to this method.</span>
+
+<span class="synPreProc">  my $found = $stuff-&gt;reduce_options( sub { $_[0] . $_[1] } );</span>
+<span class="synPreProc">  print &quot;$found\n&quot;;    # prints &quot;foobarbazboo&quot;</span>
+
+<span class="synperlPOD">This method requires a single argument.</span>
+
+<span class="synStatement">=item</span><span class="synString"> * </span><span class="synIdentifier">B&lt;sort&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> * </span><span class="synIdentifier">B&lt;sort( sub { ... } )&gt;</span>
+
+<span class="synperlPOD">Returns the elements of the array in sorted order.</span>
+
+<span class="synperlPOD">You can provide an optional subroutine reference to sort with (as you can with</span>
+<span class="synperlPOD">Perl's core </span><span class="synIdentifier">C&lt;sort&gt;</span><span class="synperlPOD"> function). However, instead of using </span><span class="synIdentifier">C&lt;$a&gt;</span><span class="synperlPOD"> and </span><span class="synIdentifier">C&lt;$b&gt;</span><span class="synperlPOD"> in</span>
+<span class="synperlPOD">this subroutine, you will need to use </span><span class="synIdentifier">C&lt;$_[0]&gt;</span><span class="synperlPOD"> and </span><span class="synIdentifier">C&lt;$_[1]&gt;</span><span class="synperlPOD">.</span>
+
+<span class="synPreProc">  # ascending ASCIIbetical</span>
+<span class="synPreProc">  my @sorted = $stuff-&gt;sort_options();</span>
+
+<span class="synPreProc">  # Descending alphabetical order</span>
+<span class="synPreProc">  my @sorted_options = $stuff-&gt;sort_options( sub { lc $_[1] cmp lc $_[0] } );</span>
+<span class="synPreProc">  print &quot;@sorted_options\n&quot;;    # prints &quot;foo boo baz bar&quot;</span>
+
+<span class="synperlPOD">This method accepts a single argument.</span>
+
+<span class="synStatement">=item</span><span class="synString"> * </span><span class="synIdentifier">B&lt;sort_in_place&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> * </span><span class="synIdentifier">B&lt;sort_in_place( sub { ... } )&gt;</span>
+
+<span class="synperlPOD">Sorts the array </span><span class="synIdentifier">I&lt;in place&gt;</span><span class="synperlPOD">, modifying the value of the attribute.</span>
+
+<span class="synperlPOD">You can provide an optional subroutine reference to sort with (as you can with</span>
+<span class="synperlPOD">Perl's core </span><span class="synIdentifier">C&lt;sort&gt;</span><span class="synperlPOD"> function). However, instead of using </span><span class="synIdentifier">C&lt;$a&gt;</span><span class="synperlPOD"> and </span><span class="synIdentifier">C&lt;$b&gt;</span><span class="synperlPOD">, you</span>
+<span class="synperlPOD">will need to use </span><span class="synIdentifier">C&lt;$_[0]&gt;</span><span class="synperlPOD"> and </span><span class="synIdentifier">C&lt;$_[1]&gt;</span><span class="synperlPOD"> instead.</span>
+
+<span class="synperlPOD">This method does not define a return value.</span>
+
+<span class="synperlPOD">This method accepts a single argument.</span>
+
+<span class="synStatement">=item</span><span class="synString"> * </span><span class="synIdentifier">B&lt;shuffle&gt;</span>
+
+<span class="synperlPOD">Returns the elements of the array in random order, like </span><span class="synIdentifier">C&lt;shuffle&gt;</span><span class="synperlPOD"> from</span>
+<span class="synIdentifier">L&lt;List::Util&gt;</span><span class="synperlPOD">.</span>
+
+<span class="synperlPOD">This method does not accept any arguments.</span>
+
+<span class="synStatement">=item</span><span class="synString"> * </span><span class="synIdentifier">B&lt;uniq&gt;</span>
+
+<span class="synperlPOD">Returns the array with all duplicate elements removed, like </span><span class="synIdentifier">C&lt;uniq&gt;</span><span class="synperlPOD"> from</span>
+<span class="synIdentifier">L&lt;List::MoreUtils&gt;</span><span class="synperlPOD">.</span>
+
+<span class="synperlPOD">This method does not accept any arguments.</span>
+
+<span class="synStatement">=item</span><span class="synString"> * </span><span class="synIdentifier">B&lt;join($str)&gt;</span>
+
+<span class="synperlPOD">Joins every element of the array using the separator given as argument, just</span>
+<span class="synperlPOD">like Perl's core </span><span class="synIdentifier">C&lt;join&gt;</span><span class="synperlPOD"> function.</span>
+
+<span class="synPreProc">  my $joined = $stuff-&gt;join_options(':');</span>
+<span class="synPreProc">  print &quot;$joined\n&quot;;    # prints &quot;foo:bar:baz:boo&quot;</span>
+
+<span class="synperlPOD">This method requires a single argument.</span>
+
+<span class="synStatement">=item</span><span class="synString"> * </span><span class="synIdentifier">B&lt;set($index, $value)&gt;</span>
+
+<span class="synperlPOD">Given an index and a value, sets the specified array element's value.</span>
+
+<span class="synperlPOD">This method returns the value at </span><span class="synIdentifier">C&lt;$index&gt;</span><span class="synperlPOD"> after the set.</span>
+
+<span class="synperlPOD">This method requires two arguments.</span>
+
+<span class="synStatement">=item</span><span class="synString"> * </span><span class="synIdentifier">B&lt;delete($index)&gt;</span>
+
+<span class="synperlPOD">Removes the element at the given index from the array.</span>
+
+<span class="synperlPOD">This method returns the deleted value. Note that if no value exists, it will</span>
+<span class="synperlPOD">return </span><span class="synIdentifier">C&lt;undef&gt;</span><span class="synperlPOD">.</span>
+
+<span class="synperlPOD">This method requires one argument.</span>
+
+<span class="synStatement">=item</span><span class="synString"> * </span><span class="synIdentifier">B&lt;insert($index, $value)&gt;</span>
+
+<span class="synperlPOD">Inserts a new element into the array at the given index.</span>
+
+<span class="synperlPOD">This method returns the new value at </span><span class="synIdentifier">C&lt;$index&gt;</span><span class="synperlPOD">.</span>
+
+<span class="synperlPOD">This method requires two arguments.</span>
+
+<span class="synStatement">=item</span><span class="synString"> * </span><span class="synIdentifier">B&lt;clear&gt;</span>
+
+<span class="synperlPOD">Empties the entire array, like </span><span class="synIdentifier">C&lt;@array = ()&gt;</span><span class="synperlPOD">.</span>
+
+<span class="synperlPOD">This method does not define a return value.</span>
+
+<span class="synperlPOD">This method does not accept any arguments.</span>
+
+<span class="synStatement">=item</span><span class="synString"> * </span><span class="synIdentifier">B&lt;accessor($index)&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> * </span><span class="synIdentifier">B&lt;accessor($index, $value)&gt;</span>
+
+<span class="synperlPOD">This method provides a get/set accessor for the array, based on array indexes.</span>
+<span class="synperlPOD">If passed one argument, it returns the value at the specified index.  If</span>
+<span class="synperlPOD">passed two arguments, it sets the value of the specified index.</span>
+
+<span class="synperlPOD">When called as a setter, this method returns the new value at </span><span class="synIdentifier">C&lt;$index&gt;</span><span class="synperlPOD">.</span>
+
+<span class="synperlPOD">This method accepts one or two arguments.</span>
+
+<span class="synStatement">=item</span><span class="synString"> * </span><span class="synIdentifier">B&lt;natatime($n)&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> * </span><span class="synIdentifier">B&lt;natatime($n, $code)&gt;</span>
+
+<span class="synperlPOD">This method returns an iterator which, on each call, returns </span><span class="synIdentifier">C&lt;$n&gt;</span><span class="synperlPOD"> more items</span>
+<span class="synperlPOD">from the array, in order, like </span><span class="synIdentifier">C&lt;natatime&gt;</span><span class="synperlPOD"> from </span><span class="synIdentifier">L&lt;List::MoreUtils&gt;</span><span class="synperlPOD">.</span>
+
+<span class="synperlPOD">If you pass a coderef as the second argument, then this code ref will be</span>
+<span class="synperlPOD">called on each group of </span><span class="synIdentifier">C&lt;$n&gt;</span><span class="synperlPOD"> elements in the array until the array is</span>
+<span class="synperlPOD">exhausted.</span>
+
+<span class="synperlPOD">This method accepts one or two arguments.</span>
+
+<span class="synStatement">=item</span><span class="synString"> * </span><span class="synIdentifier">B&lt;shallow_clone&gt;</span>
+
+<span class="synperlPOD">This method returns a shallow clone of the array reference.  The return value</span>
+<span class="synperlPOD">is a reference to a new array with the same elements.  It is </span><span class="synIdentifier">I&lt;shallow&gt;</span>
+<span class="synperlPOD">because any elements that were references in the original will be the </span><span class="synIdentifier">I&lt;same&gt;</span>
+<span class="synperlPOD">references in the clone.</span>
+
+<span class="synStatement">=back</span>
+
+<span class="synStatement">=head1</span><span class="synString"> BUGS</span>
+
+<span class="synperlPOD">See </span><span class="synIdentifier">L&lt;Moose/BUGS&gt;</span><span class="synperlPOD"> for details on reporting bugs.</span>
+
+<span class="synStatement">=head1</span><span class="synString"> AUTHOR</span>
+
+<span class="synperlPOD">Moose is maintained by the Moose Cabal, along with the help of many contributors. See </span><span class="synIdentifier">L&lt;Moose/CABAL&gt;</span><span class="synperlPOD"> and </span><span class="synIdentifier">L&lt;Moose/CONTRIBUTORS&gt;</span><span class="synperlPOD"> for details.</span>
+
+<span class="synStatement">=head1</span><span class="synString"> COPYRIGHT AND LICENSE</span>
+
+<span class="synperlPOD">This software is copyright (c) 2013 by Infinity Interactive, Inc..</span>
+
+<span class="synperlPOD">This is free software; you can redistribute it and/or modify it under</span>
+<span class="synperlPOD">the same terms as the Perl 5 programming language system itself.</span>
+
+<span class="synStatement">=cut</span>
+</pre>
+
+ </body>
+</html>

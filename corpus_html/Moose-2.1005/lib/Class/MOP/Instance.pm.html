@@ -1,0 +1,507 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html>
+ <head>
+  <title>[untitled]</title>
+  <link rel="stylesheet" type="text/css" href="../../t/vim_syntax.css" />
+ </head>
+ <body>
+
+<pre>
+<span class="synStatement">package</span><span class="synType"> Class::MOP::Instance</span>;
+<span class="synPreProc">BEGIN </span>{
+  <span class="synIdentifier">$</span><span class="synType">Class::MOP::Instance::</span><span class="synIdentifier">AUTHORITY</span> = <span class="synString">'cpan:STEVAN'</span>;
+}
+{
+  <span class="synIdentifier">$</span><span class="synType">Class::MOP::Instance::</span><span class="synIdentifier">VERSION</span> = <span class="synString">'2.1005'</span>;
+}
+
+<span class="synStatement">use strict</span>;
+<span class="synStatement">use warnings</span>;
+
+<span class="synStatement">use </span>Scalar::Util <span class="synString">'isweak'</span>, <span class="synString">'weaken'</span>, <span class="synString">'blessed'</span>;
+
+<span class="synStatement">use base</span> <span class="synString">'Class::MOP::Object'</span>;
+
+<span class="synComment"># make this not a valid method name, to avoid (most) attribute conflicts</span>
+<span class="synStatement">my</span> <span class="synIdentifier">$RESERVED_MOP_SLOT</span> = <span class="synString">'&lt;&lt;MOP&gt;&gt;'</span>;
+
+<span class="synKeyword">sub </span><span class="synFunction">BUILDARGS </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$class</span>, <span class="synIdentifier">@args</span>) = <span class="synIdentifier">@_</span>;
+
+    <span class="synConditional">if</span> ( <span class="synIdentifier">@args</span> == <span class="synNumber">1</span> ) {
+        <span class="synStatement">unshift</span> <span class="synIdentifier">@args</span>, <span class="synString">&quot;associated_metaclass&quot;</span>;
+    } <span class="synConditional">elsif</span> ( <span class="synIdentifier">@args</span> &gt;= <span class="synNumber">2</span> &amp;&amp; blessed(<span class="synIdentifier">$args[</span><span class="synNumber">0</span><span class="synIdentifier">]</span>) &amp;&amp; <span class="synIdentifier">$args[</span><span class="synNumber">0</span><span class="synIdentifier">]-&gt;isa</span>(<span class="synString">&quot;Class::MOP::Class&quot;</span>) ) {
+        <span class="synComment"># compat mode</span>
+        <span class="synStatement">my</span> ( <span class="synIdentifier">$meta</span>, <span class="synIdentifier">@attrs</span> ) = <span class="synIdentifier">@args</span>;
+        <span class="synIdentifier">@args</span> = ( <span class="synString">associated_metaclass</span> =&gt; <span class="synIdentifier">$meta</span>, <span class="synString">attributes</span> =&gt; \<span class="synIdentifier">@attrs</span> );
+    }
+
+    <span class="synStatement">my</span> <span class="synIdentifier">%options</span> = <span class="synIdentifier">@args</span>;
+    <span class="synComment"># </span><span class="synTodo">FIXME</span><span class="synComment"> lazy_build</span>
+    <span class="synIdentifier">$options{</span><span class="synString">slots</span><span class="synIdentifier">}</span> ||= [ <span class="synStatement">map</span> <span class="synStatement">{</span> <span class="synIdentifier">$_-&gt;slots</span> <span class="synStatement">}</span> <span class="synIdentifier">@{</span><span class="synperlVarBlock"> </span><span class="synIdentifier">$options{</span><span class="synString">attributes</span><span class="synIdentifier">}</span><span class="synperlVarBlock"> || [] </span><span class="synIdentifier">}</span> ];
+    <span class="synIdentifier">$options{</span><span class="synString">slot_hash</span><span class="synIdentifier">}</span> = { <span class="synStatement">map</span> <span class="synStatement">{</span> <span class="synIdentifier">$_</span> =&gt; <span class="synOperator">undef</span> <span class="synStatement">}</span> <span class="synIdentifier">@{</span><span class="synperlVarBlock"> </span><span class="synIdentifier">$options{</span><span class="synString">slots</span><span class="synIdentifier">}</span><span class="synperlVarBlock"> </span><span class="synIdentifier">}</span> }; <span class="synComment"># </span><span class="synTodo">FIXME</span><span class="synComment"> lazy_build</span>
+
+    <span class="synStatement">return</span> \<span class="synIdentifier">%options</span>;
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">new </span>{
+    <span class="synStatement">my</span> <span class="synIdentifier">$class</span> = <span class="synStatement">shift</span>;
+    <span class="synStatement">my</span> <span class="synIdentifier">$options</span> = <span class="synIdentifier">$class-&gt;BUILDARGS</span>(<span class="synIdentifier">@_</span>);
+
+    <span class="synComment"># </span><span class="synTodo">FIXME</span><span class="synComment"> replace with a proper constructor</span>
+    <span class="synStatement">my</span> <span class="synIdentifier">$instance</span> = <span class="synIdentifier">$class-&gt;_new</span>(<span class="synIdentifier">%$options</span>);
+
+    <span class="synComment"># </span><span class="synTodo">FIXME</span><span class="synComment"> weak_ref =&gt; 1,</span>
+    weaken(<span class="synIdentifier">$instance-&gt;{</span><span class="synString">'associated_metaclass'</span><span class="synIdentifier">}</span>);
+
+    <span class="synStatement">return</span> <span class="synIdentifier">$instance</span>;
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">_new </span>{
+    <span class="synStatement">my</span> <span class="synIdentifier">$class</span> = <span class="synStatement">shift</span>;
+    <span class="synStatement">return</span> Class::MOP::Class-&gt;initialize(<span class="synIdentifier">$class</span>)-&gt;new_object(<span class="synIdentifier">@_</span>)
+      <span class="synConditional">if</span> <span class="synIdentifier">$class</span> <span class="synOperator">ne</span> <span class="synperlPackageConst">__PACKAGE__</span>;
+
+    <span class="synStatement">my</span> <span class="synIdentifier">$params</span> = <span class="synIdentifier">@_</span> == <span class="synNumber">1</span> ? <span class="synIdentifier">$_[</span><span class="synNumber">0</span><span class="synIdentifier">]</span> : {<span class="synIdentifier">@_</span>};
+    <span class="synStatement">return</span> <span class="synOperator">bless</span> {
+        <span class="synComment"># </span><span class="synTodo">NOTE:</span>
+        <span class="synComment"># I am not sure that it makes</span>
+        <span class="synComment"># sense to pass in the meta</span>
+        <span class="synComment"># The ideal would be to just</span>
+        <span class="synComment"># pass in the class name, but</span>
+        <span class="synComment"># that is placing too much of</span>
+        <span class="synComment"># an assumption on bless(),</span>
+        <span class="synComment"># which is *probably* a safe</span>
+        <span class="synComment"># assumption,.. but you can</span>
+        <span class="synComment"># never tell &lt;:)</span>
+        <span class="synString">'associated_metaclass'</span> =&gt; <span class="synIdentifier">$params-&gt;{</span><span class="synString">associated_metaclass</span><span class="synIdentifier">}</span>,
+        <span class="synString">'attributes'</span>           =&gt; <span class="synIdentifier">$params-&gt;{</span><span class="synString">attributes</span><span class="synIdentifier">}</span>,
+        <span class="synString">'slots'</span>                =&gt; <span class="synIdentifier">$params-&gt;{</span><span class="synString">slots</span><span class="synIdentifier">}</span>,
+        <span class="synString">'slot_hash'</span>            =&gt; <span class="synIdentifier">$params-&gt;{</span><span class="synString">slot_hash</span><span class="synIdentifier">}</span>,
+    } =&gt; <span class="synIdentifier">$class</span>;
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">_class_name </span>{ <span class="synIdentifier">$_[</span><span class="synNumber">0</span><span class="synIdentifier">]-&gt;{</span><span class="synString">_class_name</span><span class="synIdentifier">}</span> ||= <span class="synIdentifier">$_[</span><span class="synNumber">0</span><span class="synIdentifier">]-&gt;associated_metaclass-&gt;name</span> }
+
+<span class="synKeyword">sub </span><span class="synFunction">create_instance </span>{
+    <span class="synStatement">my</span> <span class="synIdentifier">$self</span> = <span class="synStatement">shift</span>;
+    <span class="synOperator">bless</span> {}, <span class="synIdentifier">$self-&gt;_class_name</span>;
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">clone_instance </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$instance</span>) = <span class="synIdentifier">@_</span>;
+
+    <span class="synStatement">my</span> <span class="synIdentifier">$clone</span> = <span class="synIdentifier">$self-&gt;create_instance</span>;
+    <span class="synRepeat">for</span> <span class="synStatement">my</span> <span class="synIdentifier">$attr</span> (<span class="synIdentifier">$self-&gt;get_all_attributes</span>) {
+        <span class="synStatement">next</span> <span class="synConditional">unless</span> <span class="synIdentifier">$attr-&gt;has_value</span>(<span class="synIdentifier">$instance</span>);
+        <span class="synRepeat">for</span> <span class="synStatement">my</span> <span class="synIdentifier">$slot</span> (<span class="synIdentifier">$attr-&gt;slots</span>) {
+            <span class="synStatement">my</span> <span class="synIdentifier">$val</span> = <span class="synIdentifier">$self-&gt;get_slot_value</span>(<span class="synIdentifier">$instance</span>, <span class="synIdentifier">$slot</span>);
+            <span class="synIdentifier">$self-&gt;set_slot_value</span>(<span class="synIdentifier">$clone</span>, <span class="synIdentifier">$slot</span>, <span class="synIdentifier">$val</span>);
+            <span class="synIdentifier">$self-&gt;weaken_slot_value</span>(<span class="synIdentifier">$clone</span>, <span class="synIdentifier">$slot</span>)
+                <span class="synConditional">if</span> <span class="synIdentifier">$self-&gt;slot_value_is_weak</span>(<span class="synIdentifier">$instance</span>, <span class="synIdentifier">$slot</span>);
+        }
+    }
+
+    <span class="synIdentifier">$self-&gt;_set_mop_slot</span>(<span class="synIdentifier">$clone</span>, <span class="synIdentifier">$self-&gt;_get_mop_slot</span>(<span class="synIdentifier">$instance</span>))
+        <span class="synConditional">if</span> <span class="synIdentifier">$self-&gt;_has_mop_slot</span>(<span class="synIdentifier">$instance</span>);
+
+    <span class="synStatement">return</span> <span class="synIdentifier">$clone</span>;
+}
+
+<span class="synComment"># operations on meta instance</span>
+
+<span class="synKeyword">sub </span><span class="synFunction">get_all_slots </span>{
+    <span class="synStatement">my</span> <span class="synIdentifier">$self</span> = <span class="synStatement">shift</span>;
+    <span class="synStatement">return</span> <span class="synIdentifier">@{$self-&gt;{</span><span class="synString">'slots'</span><span class="synIdentifier">}}</span>;
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">get_all_attributes </span>{
+    <span class="synStatement">my</span> <span class="synIdentifier">$self</span> = <span class="synStatement">shift</span>;
+    <span class="synStatement">return</span> <span class="synIdentifier">@{$self-&gt;{</span><span class="synString">attributes</span><span class="synIdentifier">}}</span>;
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">is_valid_slot </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$slot_name</span>) = <span class="synIdentifier">@_</span>;
+    <span class="synStatement">exists</span> <span class="synIdentifier">$self-&gt;{</span><span class="synString">'slot_hash'</span><span class="synIdentifier">}-&gt;{$slot_name}</span>;
+}
+
+<span class="synComment"># operations on created instances</span>
+
+<span class="synKeyword">sub </span><span class="synFunction">get_slot_value </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$instance</span>, <span class="synIdentifier">$slot_name</span>) = <span class="synIdentifier">@_</span>;
+    <span class="synIdentifier">$instance-&gt;{$slot_name}</span>;
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">set_slot_value </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$instance</span>, <span class="synIdentifier">$slot_name</span>, <span class="synIdentifier">$value</span>) = <span class="synIdentifier">@_</span>;
+    <span class="synIdentifier">$instance-&gt;{$slot_name}</span> = <span class="synIdentifier">$value</span>;
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">initialize_slot </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$instance</span>, <span class="synIdentifier">$slot_name</span>) = <span class="synIdentifier">@_</span>;
+    <span class="synStatement">return</span>;
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">deinitialize_slot </span>{
+    <span class="synStatement">my</span> ( <span class="synIdentifier">$self</span>, <span class="synIdentifier">$instance</span>, <span class="synIdentifier">$slot_name</span> ) = <span class="synIdentifier">@_</span>;
+    <span class="synStatement">delete</span> <span class="synIdentifier">$instance-&gt;{$slot_name}</span>;
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">initialize_all_slots </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$instance</span>) = <span class="synIdentifier">@_</span>;
+    <span class="synRepeat">foreach</span> <span class="synStatement">my</span> <span class="synIdentifier">$slot_name</span> (<span class="synIdentifier">$self-&gt;get_all_slots</span>) {
+        <span class="synIdentifier">$self-&gt;initialize_slot</span>(<span class="synIdentifier">$instance</span>, <span class="synIdentifier">$slot_name</span>);
+    }
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">deinitialize_all_slots </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$instance</span>) = <span class="synIdentifier">@_</span>;
+    <span class="synRepeat">foreach</span> <span class="synStatement">my</span> <span class="synIdentifier">$slot_name</span> (<span class="synIdentifier">$self-&gt;get_all_slots</span>) {
+        <span class="synIdentifier">$self-&gt;deinitialize_slot</span>(<span class="synIdentifier">$instance</span>, <span class="synIdentifier">$slot_name</span>);
+    }
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">is_slot_initialized </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$instance</span>, <span class="synIdentifier">$slot_name</span>, <span class="synIdentifier">$value</span>) = <span class="synIdentifier">@_</span>;
+    <span class="synStatement">exists</span> <span class="synIdentifier">$instance-&gt;{$slot_name}</span>;
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">weaken_slot_value </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$instance</span>, <span class="synIdentifier">$slot_name</span>) = <span class="synIdentifier">@_</span>;
+    weaken <span class="synIdentifier">$instance-&gt;{$slot_name}</span>;
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">slot_value_is_weak </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$instance</span>, <span class="synIdentifier">$slot_name</span>) = <span class="synIdentifier">@_</span>;
+    isweak <span class="synIdentifier">$instance-&gt;{$slot_name}</span>;
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">strengthen_slot_value </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$instance</span>, <span class="synIdentifier">$slot_name</span>) = <span class="synIdentifier">@_</span>;
+    <span class="synIdentifier">$self-&gt;set_slot_value</span>(<span class="synIdentifier">$instance</span>, <span class="synIdentifier">$slot_name</span>, <span class="synIdentifier">$self-&gt;get_slot_value</span>(<span class="synIdentifier">$instance</span>, <span class="synIdentifier">$slot_name</span>));
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">rebless_instance_structure </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$instance</span>, <span class="synIdentifier">$metaclass</span>) = <span class="synIdentifier">@_</span>;
+
+    <span class="synComment"># we use $_[1] here because of t/cmop/rebless_overload.t regressions</span>
+    <span class="synComment"># on 5.8.8</span>
+    <span class="synOperator">bless</span> <span class="synIdentifier">$_[</span><span class="synNumber">1</span><span class="synIdentifier">]</span>, <span class="synIdentifier">$metaclass-&gt;name</span>;
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">is_dependent_on_superclasses </span>{
+    <span class="synStatement">return</span>; <span class="synComment"># for meta instances that require updates on inherited slot changes</span>
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">_get_mop_slot </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$instance</span>) = <span class="synIdentifier">@_</span>;
+    <span class="synIdentifier">$self-&gt;get_slot_value</span>(<span class="synIdentifier">$instance</span>, <span class="synIdentifier">$RESERVED_MOP_SLOT</span>);
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">_has_mop_slot </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$instance</span>) = <span class="synIdentifier">@_</span>;
+    <span class="synIdentifier">$self-&gt;is_slot_initialized</span>(<span class="synIdentifier">$instance</span>, <span class="synIdentifier">$RESERVED_MOP_SLOT</span>);
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">_set_mop_slot </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$instance</span>, <span class="synIdentifier">$value</span>) = <span class="synIdentifier">@_</span>;
+    <span class="synIdentifier">$self-&gt;set_slot_value</span>(<span class="synIdentifier">$instance</span>, <span class="synIdentifier">$RESERVED_MOP_SLOT</span>, <span class="synIdentifier">$value</span>);
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">_clear_mop_slot </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$instance</span>) = <span class="synIdentifier">@_</span>;
+    <span class="synIdentifier">$self-&gt;deinitialize_slot</span>(<span class="synIdentifier">$instance</span>, <span class="synIdentifier">$RESERVED_MOP_SLOT</span>);
+}
+
+<span class="synComment"># inlinable operation snippets</span>
+
+<span class="synKeyword">sub </span><span class="synFunction">is_inlinable </span>{ <span class="synNumber">1</span> }
+
+<span class="synKeyword">sub </span><span class="synFunction">inline_create_instance </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$class_variable</span>) = <span class="synIdentifier">@_</span>;
+    <span class="synString">'bless {} =&gt; '</span> . <span class="synIdentifier">$class_variable</span>;
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">inline_slot_access </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$instance</span>, <span class="synIdentifier">$slot_name</span>) = <span class="synIdentifier">@_</span>;
+    <span class="synStatement">sprintf</span> <span class="synString">q[%s-&gt;{&quot;%s&quot;}]</span>, <span class="synIdentifier">$instance</span>, <span class="synStatement">quotemeta</span>(<span class="synIdentifier">$slot_name</span>);
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">inline_get_is_lvalue </span>{ <span class="synNumber">1</span> }
+
+<span class="synKeyword">sub </span><span class="synFunction">inline_get_slot_value </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$instance</span>, <span class="synIdentifier">$slot_name</span>) = <span class="synIdentifier">@_</span>;
+    <span class="synIdentifier">$self-&gt;inline_slot_access</span>(<span class="synIdentifier">$instance</span>, <span class="synIdentifier">$slot_name</span>);
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">inline_set_slot_value </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$instance</span>, <span class="synIdentifier">$slot_name</span>, <span class="synIdentifier">$value</span>) = <span class="synIdentifier">@_</span>;
+    <span class="synIdentifier">$self-&gt;inline_slot_access</span>(<span class="synIdentifier">$instance</span>, <span class="synIdentifier">$slot_name</span>) . <span class="synString">&quot; = </span><span class="synIdentifier">$value</span><span class="synString">&quot;</span>,
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">inline_initialize_slot </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$instance</span>, <span class="synIdentifier">$slot_name</span>) = <span class="synIdentifier">@_</span>;
+    <span class="synStatement">return</span> <span class="synString">''</span>;
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">inline_deinitialize_slot </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$instance</span>, <span class="synIdentifier">$slot_name</span>) = <span class="synIdentifier">@_</span>;
+    <span class="synString">&quot;delete &quot;</span> . <span class="synIdentifier">$self-&gt;inline_slot_access</span>(<span class="synIdentifier">$instance</span>, <span class="synIdentifier">$slot_name</span>);
+}
+<span class="synKeyword">sub </span><span class="synFunction">inline_is_slot_initialized </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$instance</span>, <span class="synIdentifier">$slot_name</span>) = <span class="synIdentifier">@_</span>;
+    <span class="synString">&quot;exists &quot;</span> . <span class="synIdentifier">$self-&gt;inline_slot_access</span>(<span class="synIdentifier">$instance</span>, <span class="synIdentifier">$slot_name</span>);
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">inline_weaken_slot_value </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$instance</span>, <span class="synIdentifier">$slot_name</span>) = <span class="synIdentifier">@_</span>;
+    <span class="synStatement">sprintf</span> <span class="synString">&quot;Scalar::Util::weaken( %s )&quot;</span>, <span class="synIdentifier">$self-&gt;inline_slot_access</span>(<span class="synIdentifier">$instance</span>, <span class="synIdentifier">$slot_name</span>);
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">inline_strengthen_slot_value </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$instance</span>, <span class="synIdentifier">$slot_name</span>) = <span class="synIdentifier">@_</span>;
+    <span class="synIdentifier">$self-&gt;inline_set_slot_value</span>(<span class="synIdentifier">$instance</span>, <span class="synIdentifier">$slot_name</span>, <span class="synIdentifier">$self-&gt;inline_slot_access</span>(<span class="synIdentifier">$instance</span>, <span class="synIdentifier">$slot_name</span>));
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">inline_rebless_instance_structure </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$instance</span>, <span class="synIdentifier">$class_variable</span>) = <span class="synIdentifier">@_</span>;
+    <span class="synString">&quot;bless </span><span class="synIdentifier">$instance</span><span class="synString"> =&gt; </span><span class="synIdentifier">$class_variable</span><span class="synString">&quot;</span>;
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">_inline_get_mop_slot </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$instance</span>) = <span class="synIdentifier">@_</span>;
+    <span class="synIdentifier">$self-&gt;inline_get_slot_value</span>(<span class="synIdentifier">$instance</span>, <span class="synIdentifier">$RESERVED_MOP_SLOT</span>);
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">_inline_set_mop_slot </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$instance</span>, <span class="synIdentifier">$value</span>) = <span class="synIdentifier">@_</span>;
+    <span class="synIdentifier">$self-&gt;inline_set_slot_value</span>(<span class="synIdentifier">$instance</span>, <span class="synIdentifier">$RESERVED_MOP_SLOT</span>, <span class="synIdentifier">$value</span>);
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">_inline_clear_mop_slot </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$instance</span>) = <span class="synIdentifier">@_</span>;
+    <span class="synIdentifier">$self-&gt;inline_deinitialize_slot</span>(<span class="synIdentifier">$instance</span>, <span class="synIdentifier">$RESERVED_MOP_SLOT</span>);
+}
+
+<span class="synNumber">1</span>;
+
+<span class="synComment"># ABSTRACT: Instance Meta Object</span>
+
+<span class="synComment">__END__</span>
+
+<span class="synStatement">=pod</span>
+
+<span class="synStatement">=head1</span><span class="synString"> NAME</span>
+
+<span class="synperlPOD">Class::MOP::Instance - Instance Meta Object</span>
+
+<span class="synStatement">=head1</span><span class="synString"> VERSION</span>
+
+<span class="synperlPOD">version 2.1005</span>
+
+<span class="synStatement">=head1</span><span class="synString"> DESCRIPTION</span>
+
+<span class="synperlPOD">The Instance Protocol controls the creation of object instances, and</span>
+<span class="synperlPOD">the storage of attribute values in those instances.</span>
+
+<span class="synperlPOD">Using this API directly in your own code violates encapsulation, and</span>
+<span class="synperlPOD">we recommend that you use the appropriate APIs in </span><span class="synIdentifier">L&lt;Class::MOP::Class&gt;</span>
+<span class="synperlPOD">and </span><span class="synIdentifier">L&lt;Class::MOP::Attribute&gt;</span><span class="synperlPOD"> instead. Those APIs in turn call the</span>
+<span class="synperlPOD">methods in this class as appropriate.</span>
+
+<span class="synperlPOD">This class also participates in generating inlined code by providing</span>
+<span class="synperlPOD">snippets of code to access an object instance.</span>
+
+<span class="synStatement">=head1</span><span class="synString"> METHODS</span>
+
+<span class="synStatement">=head2</span><span class="synString"> Object construction</span>
+
+<span class="synStatement">=over</span><span class="synperlPOD"> </span><span class="synNumber">4</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; Class::MOP::Instance-&gt;new(%options) &gt;&gt;</span>
+
+<span class="synperlPOD">This method creates a new meta-instance object.</span>
+
+<span class="synperlPOD">It accepts the following keys in </span><span class="synIdentifier">C&lt;%options&gt;</span><span class="synperlPOD">:</span>
+
+<span class="synStatement">=over</span><span class="synperlPOD"> </span><span class="synNumber">8</span>
+
+<span class="synStatement">=item</span><span class="synString"> * associated_metaclass</span>
+
+<span class="synperlPOD">The </span><span class="synIdentifier">L&lt;Class::MOP::Class&gt;</span><span class="synperlPOD"> object for which instances will be created.</span>
+
+<span class="synStatement">=item</span><span class="synString"> * attributes</span>
+
+<span class="synperlPOD">An array reference of </span><span class="synIdentifier">L&lt;Class::MOP::Attribute&gt;</span><span class="synperlPOD"> objects. These are the</span>
+<span class="synperlPOD">attributes which can be stored in each instance.</span>
+
+<span class="synStatement">=back</span>
+
+<span class="synStatement">=back</span>
+
+<span class="synStatement">=head2</span><span class="synString"> Creating and altering instances</span>
+
+<span class="synStatement">=over</span><span class="synperlPOD"> </span><span class="synNumber">4</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $metainstance-&gt;create_instance &gt;&gt;</span>
+
+<span class="synperlPOD">This method returns a reference blessed into the associated</span>
+<span class="synperlPOD">metaclass's class.</span>
+
+<span class="synperlPOD">The default is to use a hash reference. Subclasses can override this.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $metainstance-&gt;clone_instance($instance) &gt;&gt;</span>
+
+<span class="synperlPOD">Given an instance, this method creates a new object by making</span>
+<span class="synIdentifier">I&lt;shallow&gt;</span><span class="synperlPOD"> clone of the original.</span>
+
+<span class="synStatement">=back</span>
+
+<span class="synStatement">=head2</span><span class="synString"> Introspection</span>
+
+<span class="synStatement">=over</span><span class="synperlPOD"> </span><span class="synNumber">4</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $metainstance-&gt;associated_metaclass &gt;&gt;</span>
+
+<span class="synperlPOD">This returns the </span><span class="synIdentifier">L&lt;Class::MOP::Class&gt;</span><span class="synperlPOD"> object associated with the</span>
+<span class="synperlPOD">meta-instance object.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $metainstance-&gt;get_all_slots &gt;&gt;</span>
+
+<span class="synperlPOD">This returns a list of slot names stored in object instances. In</span>
+<span class="synperlPOD">almost all cases, slot names correspond directly attribute names.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $metainstance-&gt;is_valid_slot($slot_name) &gt;&gt;</span>
+
+<span class="synperlPOD">This will return true if </span><span class="synIdentifier">C&lt;$slot_name&gt;</span><span class="synperlPOD"> is a valid slot name.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $metainstance-&gt;get_all_attributes &gt;&gt;</span>
+
+<span class="synperlPOD">This returns a list of attributes corresponding to the attributes</span>
+<span class="synperlPOD">passed to the constructor.</span>
+
+<span class="synStatement">=back</span>
+
+<span class="synStatement">=head2</span><span class="synString"> Operations on Instance Structures</span>
+
+<span class="synperlPOD">It's important to understand that the meta-instance object is a</span>
+<span class="synperlPOD">different entity from the actual instances it creates. For this</span>
+<span class="synperlPOD">reason, any operations on the </span><span class="synIdentifier">C&lt;$instance_structure&gt;</span><span class="synperlPOD"> always require</span>
+<span class="synperlPOD">that the object instance be passed to the method.</span>
+
+<span class="synStatement">=over</span><span class="synperlPOD"> </span><span class="synNumber">4</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $metainstance-&gt;get_slot_value($instance_structure, $slot_name) &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $metainstance-&gt;set_slot_value($instance_structure, $slot_name, $value) &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $metainstance-&gt;initialize_slot($instance_structure, $slot_name) &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $metainstance-&gt;deinitialize_slot($instance_structure, $slot_name) &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $metainstance-&gt;initialize_all_slots($instance_structure) &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $metainstance-&gt;deinitialize_all_slots($instance_structure) &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $metainstance-&gt;is_slot_initialized($instance_structure, $slot_name) &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $metainstance-&gt;weaken_slot_value($instance_structure, $slot_name) &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $metainstance-&gt;slot_value_is_weak($instance_structure, $slot_name) &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $metainstance-&gt;strengthen_slot_value($instance_structure, $slot_name) &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $metainstance-&gt;rebless_instance_structure($instance_structure, $new_metaclass) &gt;&gt;</span>
+
+<span class="synperlPOD">The exact details of what each method does should be fairly obvious</span>
+<span class="synperlPOD">from the method name.</span>
+
+<span class="synStatement">=back</span>
+
+<span class="synStatement">=head2</span><span class="synString"> Inlinable Instance Operations</span>
+
+<span class="synStatement">=over</span><span class="synperlPOD"> </span><span class="synNumber">4</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $metainstance-&gt;is_inlinable &gt;&gt;</span>
+
+<span class="synperlPOD">This is a boolean that indicates whether or not slot access operations</span>
+<span class="synperlPOD">can be inlined. By default it is true, but subclasses can override</span>
+<span class="synperlPOD">this.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $metainstance-&gt;inline_create_instance($class_variable) &gt;&gt;</span>
+
+<span class="synperlPOD">This method expects a string that, </span><span class="synIdentifier">I&lt;when inlined&gt;</span><span class="synperlPOD">, will become a</span>
+<span class="synperlPOD">class name. This would literally be something like </span><span class="synIdentifier">C&lt;'$class'&gt;</span><span class="synperlPOD">, not an</span>
+<span class="synperlPOD">actual class name.</span>
+
+<span class="synperlPOD">It returns a snippet of code that creates a new object for the</span>
+<span class="synperlPOD">class. This is something like </span><span class="synIdentifier">C&lt; bless {}, $class_name &gt;</span><span class="synperlPOD">.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $metainstance-&gt;inline_get_is_lvalue &gt;&gt;</span>
+
+<span class="synperlPOD">Returns whether or not </span><span class="synIdentifier">C&lt;inline_get_slot_value&gt;</span><span class="synperlPOD"> is a valid lvalue. This can be</span>
+<span class="synperlPOD">used to do extra optimizations when generating inlined methods.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $metainstance-&gt;inline_slot_access($instance_variable, $slot_name) &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $metainstance-&gt;inline_get_slot_value($instance_variable, $slot_name) &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $metainstance-&gt;inline_set_slot_value($instance_variable, $slot_name, $value) &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $metainstance-&gt;inline_initialize_slot($instance_variable, $slot_name) &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $metainstance-&gt;inline_deinitialize_slot($instance_variable, $slot_name) &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $metainstance-&gt;inline_is_slot_initialized($instance_variable, $slot_name) &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $metainstance-&gt;inline_weaken_slot_value($instance_variable, $slot_name) &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $metainstance-&gt;inline_strengthen_slot_value($instance_variable, $slot_name) &gt;&gt;</span>
+
+<span class="synperlPOD">These methods all expect two arguments. The first is the name of a</span>
+<span class="synperlPOD">variable, than when inlined, will represent the object</span>
+<span class="synperlPOD">instance. Typically this will be a literal string like </span><span class="synIdentifier">C&lt;'$_[0]'&gt;</span><span class="synperlPOD">.</span>
+
+<span class="synperlPOD">The second argument is a slot name.</span>
+
+<span class="synperlPOD">The method returns a snippet of code that, when inlined, performs some</span>
+<span class="synperlPOD">operation on the instance.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $metainstance-&gt;inline_rebless_instance_structure($instance_variable, $class_variable) &gt;&gt;</span>
+
+<span class="synperlPOD">This takes the name of a variable that will, when inlined, represent the object</span>
+<span class="synperlPOD">instance, and the name of a variable that will represent the class to rebless</span>
+<span class="synperlPOD">into, and returns code to rebless an instance into a class.</span>
+
+<span class="synStatement">=back</span>
+
+<span class="synStatement">=head2</span><span class="synString"> Introspection</span>
+
+<span class="synStatement">=over</span><span class="synperlPOD"> </span><span class="synNumber">4</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; Class::MOP::Instance-&gt;meta &gt;&gt;</span>
+
+<span class="synperlPOD">This will return a </span><span class="synIdentifier">L&lt;Class::MOP::Class&gt;</span><span class="synperlPOD"> instance for this class.</span>
+
+<span class="synperlPOD">It should also be noted that </span><span class="synIdentifier">L&lt;Class::MOP&gt;</span><span class="synperlPOD"> will actually bootstrap</span>
+<span class="synperlPOD">this module by installing a number of attribute meta-objects into its</span>
+<span class="synperlPOD">metaclass.</span>
+
+<span class="synStatement">=back</span>
+
+<span class="synStatement">=head1</span><span class="synString"> AUTHOR</span>
+
+<span class="synperlPOD">Moose is maintained by the Moose Cabal, along with the help of many contributors. See </span><span class="synIdentifier">L&lt;Moose/CABAL&gt;</span><span class="synperlPOD"> and </span><span class="synIdentifier">L&lt;Moose/CONTRIBUTORS&gt;</span><span class="synperlPOD"> for details.</span>
+
+<span class="synStatement">=head1</span><span class="synString"> COPYRIGHT AND LICENSE</span>
+
+<span class="synperlPOD">This software is copyright (c) 2013 by Infinity Interactive, Inc..</span>
+
+<span class="synperlPOD">This is free software; you can redistribute it and/or modify it under</span>
+<span class="synperlPOD">the same terms as the Perl 5 programming language system itself.</span>
+
+<span class="synStatement">=cut</span>
+</pre>
+
+ </body>
+</html>

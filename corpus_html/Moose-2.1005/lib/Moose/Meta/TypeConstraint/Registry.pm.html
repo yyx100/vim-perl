@@ -1,0 +1,181 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html>
+ <head>
+  <title>[untitled]</title>
+  <link rel="stylesheet" type="text/css" href="../../t/vim_syntax.css" />
+ </head>
+ <body>
+
+<pre>
+<span class="synStatement">package</span><span class="synType"> Moose::Meta::TypeConstraint::Registry</span>;
+<span class="synPreProc">BEGIN </span>{
+  <span class="synIdentifier">$</span><span class="synType">Moose::Meta::TypeConstraint::Registry::</span><span class="synIdentifier">AUTHORITY</span> = <span class="synString">'cpan:STEVAN'</span>;
+}
+{
+  <span class="synIdentifier">$</span><span class="synType">Moose::Meta::TypeConstraint::Registry::</span><span class="synIdentifier">VERSION</span> = <span class="synString">'2.1005'</span>;
+}
+
+<span class="synStatement">use strict</span>;
+<span class="synStatement">use warnings</span>;
+<span class="synStatement">use </span>metaclass;
+
+<span class="synStatement">use </span>Scalar::Util <span class="synString">'blessed'</span>;
+
+<span class="synStatement">use base</span> <span class="synString">'Class::MOP::Object'</span>;
+
+<span class="synperlPackageConst">__PACKAGE__</span><span class="synIdentifier">-&gt;meta-&gt;add_attribute</span>(<span class="synString">'parent_registry'</span> =&gt; (
+    <span class="synString">reader</span>    =&gt; <span class="synString">'get_parent_registry'</span>,
+    <span class="synString">writer</span>    =&gt; <span class="synString">'set_parent_registry'</span>,
+    <span class="synString">predicate</span> =&gt; <span class="synString">'has_parent_registry'</span>,
+    Class::MOP::_definition_context(),
+));
+
+<span class="synperlPackageConst">__PACKAGE__</span><span class="synIdentifier">-&gt;meta-&gt;add_attribute</span>(<span class="synString">'type_constraints'</span> =&gt; (
+    <span class="synString">reader</span>  =&gt; <span class="synString">'type_constraints'</span>,
+    <span class="synString">default</span> =&gt; <span class="synKeyword">sub </span>{ {} },
+    Class::MOP::_definition_context(),
+));
+
+<span class="synKeyword">sub </span><span class="synFunction">new </span>{
+    <span class="synStatement">my</span> <span class="synIdentifier">$class</span> = <span class="synStatement">shift</span>;
+    <span class="synStatement">my</span> <span class="synIdentifier">$self</span>  = <span class="synIdentifier">$class-&gt;_new</span>(<span class="synIdentifier">@_</span>);
+    <span class="synStatement">return</span> <span class="synIdentifier">$self</span>;
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">has_type_constraint </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$type_name</span>) = <span class="synIdentifier">@_</span>;
+    (<span class="synIdentifier">$type_name</span> <span class="synOperator">and</span> <span class="synStatement">exists</span> <span class="synIdentifier">$self-&gt;type_constraints-&gt;{$type_name}</span>) ? <span class="synNumber">1</span> : <span class="synNumber">0</span>
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">get_type_constraint </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$type_name</span>) = <span class="synIdentifier">@_</span>;
+    <span class="synStatement">return</span> <span class="synConditional">unless</span> <span class="synOperator">defined</span> <span class="synIdentifier">$type_name</span>;
+    <span class="synIdentifier">$self-&gt;type_constraints-&gt;{$type_name}</span>
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">add_type_constraint </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$type</span>) = <span class="synIdentifier">@_</span>;
+
+    <span class="synConditional">unless</span> ( <span class="synIdentifier">$type</span> &amp;&amp; blessed <span class="synIdentifier">$type</span> &amp;&amp; <span class="synIdentifier">$type-&gt;isa</span>(<span class="synString">'Moose::Meta::TypeConstraint'</span>) ) {
+        <span class="synStatement">require</span> Moose;
+        Moose-&gt;throw_error(<span class="synString">&quot;No type supplied / type is not a valid type constraint&quot;</span>);
+    }
+
+    <span class="synIdentifier">$self-&gt;type_constraints-&gt;{$type-&gt;name}</span> = <span class="synIdentifier">$type</span>;
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">find_type_constraint </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$type_name</span>) = <span class="synIdentifier">@_</span>;
+    <span class="synStatement">return</span> <span class="synIdentifier">$self-&gt;get_type_constraint</span>(<span class="synIdentifier">$type_name</span>)
+        <span class="synConditional">if</span> <span class="synIdentifier">$self-&gt;has_type_constraint</span>(<span class="synIdentifier">$type_name</span>);
+    <span class="synStatement">return</span> <span class="synIdentifier">$self-&gt;get_parent_registry-&gt;find_type_constraint</span>(<span class="synIdentifier">$type_name</span>)
+        <span class="synConditional">if</span> <span class="synIdentifier">$self-&gt;has_parent_registry</span>;
+    <span class="synStatement">return</span>;
+}
+
+<span class="synNumber">1</span>;
+
+<span class="synComment"># ABSTRACT: registry for type constraints</span>
+
+<span class="synComment">__END__</span>
+
+<span class="synStatement">=pod</span>
+
+<span class="synStatement">=head1</span><span class="synString"> NAME</span>
+
+<span class="synperlPOD">Moose::Meta::TypeConstraint::Registry - registry for type constraints</span>
+
+<span class="synStatement">=head1</span><span class="synString"> VERSION</span>
+
+<span class="synperlPOD">version 2.1005</span>
+
+<span class="synStatement">=head1</span><span class="synString"> DESCRIPTION</span>
+
+<span class="synperlPOD">This class is a registry that maps type constraint names to</span>
+<span class="synIdentifier">L&lt;Moose::Meta::TypeConstraint&gt;</span><span class="synperlPOD"> objects.</span>
+
+<span class="synperlPOD">Currently, it is only used internally by</span>
+<span class="synIdentifier">L&lt;Moose::Util::TypeConstraints&gt;</span><span class="synperlPOD">, which creates a single global</span>
+<span class="synperlPOD">registry.</span>
+
+<span class="synStatement">=head1</span><span class="synString"> INHERITANCE</span>
+
+<span class="synIdentifier">C&lt;Moose::Meta::TypeConstraint::Registry&gt;</span><span class="synperlPOD"> is a subclass of</span>
+<span class="synIdentifier">L&lt;Class::MOP::Object&gt;</span><span class="synperlPOD">.</span>
+
+<span class="synStatement">=head1</span><span class="synString"> METHODS</span>
+
+<span class="synStatement">=over</span><span class="synperlPOD"> </span><span class="synNumber">4</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; Moose::Meta::TypeConstraint::Registry-&gt;new(%options) &gt;&gt;</span>
+
+<span class="synperlPOD">This creates a new registry object based on the provided </span><span class="synIdentifier">C&lt;%options&gt;</span><span class="synperlPOD">:</span>
+
+<span class="synStatement">=over</span><span class="synperlPOD"> </span><span class="synNumber">8</span>
+
+<span class="synStatement">=item</span><span class="synString"> * parent_registry</span>
+
+<span class="synperlPOD">This is an optional </span><span class="synIdentifier">L&lt;Moose::Meta::TypeConstraint::Registry&gt;</span>
+<span class="synperlPOD">object.</span>
+
+<span class="synStatement">=item</span><span class="synString"> * type_constraints</span>
+
+<span class="synperlPOD">This is hash reference of type names to type objects. This is</span>
+<span class="synperlPOD">optional. Constraints can be added to the registry after it is</span>
+<span class="synperlPOD">created.</span>
+
+<span class="synStatement">=back</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $registry-&gt;get_parent_registry &gt;&gt;</span>
+
+<span class="synperlPOD">Returns the registry's parent registry, if it has one.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $registry-&gt;has_parent_registry &gt;&gt;</span>
+
+<span class="synperlPOD">Returns true if the registry has a parent.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $registry-&gt;set_parent_registry($registry) &gt;&gt;</span>
+
+<span class="synperlPOD">Sets the parent registry.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $registry-&gt;get_type_constraint($type_name) &gt;&gt;</span>
+
+<span class="synperlPOD">This returns the </span><span class="synIdentifier">L&lt;Moose::Meta::TypeConstraint&gt;</span><span class="synperlPOD"> object from the</span>
+<span class="synperlPOD">registry for the given name, if one exists.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $registry-&gt;has_type_constraint($type_name) &gt;&gt;</span>
+
+<span class="synperlPOD">Returns true if the registry has a type of the given name.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $registry-&gt;add_type_constraint($type) &gt;&gt;</span>
+
+<span class="synperlPOD">Adds a new </span><span class="synIdentifier">L&lt;Moose::Meta::TypeConstraint&gt;</span><span class="synperlPOD"> object to the registry.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $registry-&gt;find_type_constraint($type_name) &gt;&gt;</span>
+
+<span class="synperlPOD">This method looks in the current registry for the named type. If the</span>
+<span class="synperlPOD">type is not found, then this method will look in the registry's</span>
+<span class="synperlPOD">parent, if it has one.</span>
+
+<span class="synStatement">=back</span>
+
+<span class="synStatement">=head1</span><span class="synString"> BUGS</span>
+
+<span class="synperlPOD">See </span><span class="synIdentifier">L&lt;Moose/BUGS&gt;</span><span class="synperlPOD"> for details on reporting bugs.</span>
+
+<span class="synStatement">=head1</span><span class="synString"> AUTHOR</span>
+
+<span class="synperlPOD">Moose is maintained by the Moose Cabal, along with the help of many contributors. See </span><span class="synIdentifier">L&lt;Moose/CABAL&gt;</span><span class="synperlPOD"> and </span><span class="synIdentifier">L&lt;Moose/CONTRIBUTORS&gt;</span><span class="synperlPOD"> for details.</span>
+
+<span class="synStatement">=head1</span><span class="synString"> COPYRIGHT AND LICENSE</span>
+
+<span class="synperlPOD">This software is copyright (c) 2013 by Infinity Interactive, Inc..</span>
+
+<span class="synperlPOD">This is free software; you can redistribute it and/or modify it under</span>
+<span class="synperlPOD">the same terms as the Perl 5 programming language system itself.</span>
+
+<span class="synStatement">=cut</span>
+</pre>
+
+ </body>
+</html>

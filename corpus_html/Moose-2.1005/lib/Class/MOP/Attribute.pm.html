@@ -1,0 +1,1046 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html>
+ <head>
+  <title>[untitled]</title>
+  <link rel="stylesheet" type="text/css" href="../../t/vim_syntax.css" />
+ </head>
+ <body>
+
+<pre>
+<span class="synStatement">package</span><span class="synType"> Class::MOP::Attribute</span>;
+<span class="synPreProc">BEGIN </span>{
+  <span class="synIdentifier">$</span><span class="synType">Class::MOP::Attribute::</span><span class="synIdentifier">AUTHORITY</span> = <span class="synString">'cpan:STEVAN'</span>;
+}
+{
+  <span class="synIdentifier">$</span><span class="synType">Class::MOP::Attribute::</span><span class="synIdentifier">VERSION</span> = <span class="synString">'2.1005'</span>;
+}
+
+<span class="synStatement">use strict</span>;
+<span class="synStatement">use warnings</span>;
+
+<span class="synStatement">use </span>Class::MOP::Method::Accessor;
+
+<span class="synStatement">use </span>Carp         <span class="synString">'confess'</span>;
+<span class="synStatement">use </span>Scalar::Util <span class="synString">'blessed'</span>, <span class="synString">'weaken'</span>;
+<span class="synStatement">use </span>Try::Tiny;
+
+<span class="synStatement">use base</span> <span class="synString">'Class::MOP::Object'</span>, <span class="synString">'Class::MOP::Mixin::AttributeCore'</span>;
+
+<span class="synComment"># </span><span class="synTodo">NOTE:</span><span class="synComment"> (meta-circularity)</span>
+<span class="synComment"># This method will be replaced in the</span>
+<span class="synComment"># boostrap section of Class::MOP, by</span>
+<span class="synComment"># a new version which uses the</span>
+<span class="synComment"># &amp;Class::MOP::Class::construct_instance</span>
+<span class="synComment"># method to build an attribute meta-object</span>
+<span class="synComment"># which itself is described with attribute</span>
+<span class="synComment"># meta-objects.</span>
+<span class="synComment">#     - Ain't meta-circularity grand? :)</span>
+<span class="synKeyword">sub </span><span class="synFunction">new </span>{
+    <span class="synStatement">my</span> ( <span class="synIdentifier">$class</span>, <span class="synIdentifier">@args</span> ) = <span class="synIdentifier">@_</span>;
+
+    <span class="synStatement">unshift</span> <span class="synIdentifier">@args</span>, <span class="synString">&quot;name&quot;</span> <span class="synConditional">if</span> <span class="synIdentifier">@args</span> % <span class="synNumber">2</span> == <span class="synNumber">1</span>;
+    <span class="synStatement">my</span> <span class="synIdentifier">%options</span> = <span class="synIdentifier">@args</span>;
+
+    <span class="synStatement">my</span> <span class="synIdentifier">$name</span> = <span class="synIdentifier">$options{</span><span class="synString">name</span><span class="synIdentifier">}</span>;
+
+    (<span class="synOperator">defined</span> <span class="synIdentifier">$name</span>)
+        || confess <span class="synString">&quot;You must provide a name for the attribute&quot;</span>;
+
+    <span class="synIdentifier">$options{</span><span class="synString">init_arg</span><span class="synIdentifier">}</span> = <span class="synIdentifier">$name</span>
+        <span class="synConditional">if</span> <span class="synOperator">not</span> <span class="synStatement">exists</span> <span class="synIdentifier">$options{</span><span class="synString">init_arg</span><span class="synIdentifier">}</span>;
+    <span class="synConditional">if</span>(<span class="synStatement">exists</span> <span class="synIdentifier">$options{</span><span class="synString">builder</span><span class="synIdentifier">}</span>){
+        confess(<span class="synString">&quot;builder must be a defined scalar value which is a method name&quot;</span>)
+            <span class="synConditional">if</span> <span class="synOperator">ref</span> <span class="synIdentifier">$options{</span><span class="synString">builder</span><span class="synIdentifier">}</span> || !(<span class="synOperator">defined</span> <span class="synIdentifier">$options{</span><span class="synString">builder</span><span class="synIdentifier">}</span>);
+        confess(<span class="synString">&quot;Setting both default and builder is not allowed.&quot;</span>)
+            <span class="synConditional">if</span> <span class="synStatement">exists</span> <span class="synIdentifier">$options{</span><span class="synString">default</span><span class="synIdentifier">}</span>;
+    } <span class="synConditional">else</span> {
+        (<span class="synIdentifier">$class-&gt;is_default_a_coderef</span>(\<span class="synIdentifier">%options</span>))
+            || confess(<span class="synString">&quot;References are not allowed as default values, you must &quot;</span>.
+                       <span class="synString">&quot;wrap the default of '</span><span class="synIdentifier">$name</span><span class="synString">' in a CODE reference (ex: sub { [] } and not [])&quot;</span>)
+                <span class="synConditional">if</span> <span class="synStatement">exists</span> <span class="synIdentifier">$options{</span><span class="synString">default</span><span class="synIdentifier">}</span> &amp;&amp; <span class="synOperator">ref</span> <span class="synIdentifier">$options{</span><span class="synString">default</span><span class="synIdentifier">}</span>;
+    }
+    <span class="synConditional">if</span>( <span class="synIdentifier">$options{</span><span class="synString">required</span><span class="synIdentifier">}</span> <span class="synOperator">and</span> <span class="synOperator">not</span>( <span class="synOperator">defined</span>(<span class="synIdentifier">$options{</span><span class="synString">builder</span><span class="synIdentifier">}</span>) || <span class="synOperator">defined</span>(<span class="synIdentifier">$options{</span><span class="synString">init_arg</span><span class="synIdentifier">}</span>) || <span class="synStatement">exists</span> <span class="synIdentifier">$options{</span><span class="synString">default</span><span class="synIdentifier">}</span> ) ) {
+        confess(<span class="synString">&quot;A required attribute must have either 'init_arg', 'builder', or 'default'&quot;</span>);
+    }
+
+    <span class="synIdentifier">$class-&gt;_new</span>(\<span class="synIdentifier">%options</span>);
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">_new </span>{
+    <span class="synStatement">my</span> <span class="synIdentifier">$class</span> = <span class="synStatement">shift</span>;
+
+    <span class="synStatement">return</span> Class::MOP::Class-&gt;initialize(<span class="synIdentifier">$class</span>)-&gt;new_object(<span class="synIdentifier">@_</span>)
+        <span class="synConditional">if</span> <span class="synIdentifier">$class</span> <span class="synOperator">ne</span> <span class="synperlPackageConst">__PACKAGE__</span>;
+
+    <span class="synStatement">my</span> <span class="synIdentifier">$options</span> = <span class="synIdentifier">@_</span> == <span class="synNumber">1</span> ? <span class="synIdentifier">$_[</span><span class="synNumber">0</span><span class="synIdentifier">]</span> : {<span class="synIdentifier">@_</span>};
+
+    <span class="synOperator">bless</span> {
+        <span class="synString">'name'</span>               =&gt; <span class="synIdentifier">$options-&gt;{</span><span class="synString">name</span><span class="synIdentifier">}</span>,
+        <span class="synString">'accessor'</span>           =&gt; <span class="synIdentifier">$options-&gt;{</span><span class="synString">accessor</span><span class="synIdentifier">}</span>,
+        <span class="synString">'reader'</span>             =&gt; <span class="synIdentifier">$options-&gt;{</span><span class="synString">reader</span><span class="synIdentifier">}</span>,
+        <span class="synString">'writer'</span>             =&gt; <span class="synIdentifier">$options-&gt;{</span><span class="synString">writer</span><span class="synIdentifier">}</span>,
+        <span class="synString">'predicate'</span>          =&gt; <span class="synIdentifier">$options-&gt;{</span><span class="synString">predicate</span><span class="synIdentifier">}</span>,
+        <span class="synString">'clearer'</span>            =&gt; <span class="synIdentifier">$options-&gt;{</span><span class="synString">clearer</span><span class="synIdentifier">}</span>,
+        <span class="synString">'builder'</span>            =&gt; <span class="synIdentifier">$options-&gt;{</span><span class="synString">builder</span><span class="synIdentifier">}</span>,
+        <span class="synString">'init_arg'</span>           =&gt; <span class="synIdentifier">$options-&gt;{</span><span class="synString">init_arg</span><span class="synIdentifier">}</span>,
+        <span class="synStatement">exists</span> <span class="synIdentifier">$options-&gt;{</span><span class="synString">default</span><span class="synIdentifier">}</span>
+            ? (<span class="synString">'default'</span>     =&gt; <span class="synIdentifier">$options-&gt;{</span><span class="synString">default</span><span class="synIdentifier">}</span>)
+            : (),
+        <span class="synString">'initializer'</span>        =&gt; <span class="synIdentifier">$options-&gt;{</span><span class="synString">initializer</span><span class="synIdentifier">}</span>,
+        <span class="synString">'definition_context'</span> =&gt; <span class="synIdentifier">$options-&gt;{</span><span class="synString">definition_context</span><span class="synIdentifier">}</span>,
+        <span class="synComment"># keep a weakened link to the</span>
+        <span class="synComment"># class we are associated with</span>
+        <span class="synString">'associated_class'</span> =&gt; <span class="synOperator">undef</span>,
+        <span class="synComment"># and a list of the methods</span>
+        <span class="synComment"># associated with this attr</span>
+        <span class="synString">'associated_methods'</span> =&gt; [],
+        <span class="synComment"># this let's us keep track of</span>
+        <span class="synComment"># our order inside the associated</span>
+        <span class="synComment"># class</span>
+        <span class="synString">'insertion_order'</span>    =&gt; <span class="synOperator">undef</span>,
+    }, <span class="synIdentifier">$class</span>;
+}
+
+<span class="synComment"># </span><span class="synTodo">NOTE:</span>
+<span class="synComment"># this is a primitive (and kludgy) clone operation</span>
+<span class="synComment"># for now, it will be replaced in the Class::MOP</span>
+<span class="synComment"># bootstrap with a proper one, however we know</span>
+<span class="synComment"># that this one will work fine for now.</span>
+<span class="synKeyword">sub </span><span class="synFunction">clone </span>{
+    <span class="synStatement">my</span> <span class="synIdentifier">$self</span>    = <span class="synStatement">shift</span>;
+    <span class="synStatement">my</span> <span class="synIdentifier">%options</span> = <span class="synIdentifier">@_</span>;
+    (blessed(<span class="synIdentifier">$self</span>))
+        || confess <span class="synString">&quot;Can only clone an instance&quot;</span>;
+    <span class="synStatement">return</span> <span class="synOperator">bless</span> { <span class="synIdentifier">%{$self}</span>, <span class="synIdentifier">%options</span> } =&gt; <span class="synOperator">ref</span>(<span class="synIdentifier">$self</span>);
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">initialize_instance_slot </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$meta_instance</span>, <span class="synIdentifier">$instance</span>, <span class="synIdentifier">$params</span>) = <span class="synIdentifier">@_</span>;
+    <span class="synStatement">my</span> <span class="synIdentifier">$init_arg</span> = <span class="synIdentifier">$self-&gt;{</span><span class="synString">'init_arg'</span><span class="synIdentifier">}</span>;
+
+    <span class="synComment"># try to fetch the init arg from the %params ...</span>
+
+    <span class="synComment"># if nothing was in the %params, we can use the</span>
+    <span class="synComment"># attribute's default value (if it has one)</span>
+    <span class="synConditional">if</span>(<span class="synOperator">defined</span> <span class="synIdentifier">$init_arg</span> <span class="synOperator">and</span> <span class="synStatement">exists</span> <span class="synIdentifier">$params-&gt;{$init_arg}</span>){
+        <span class="synIdentifier">$self-&gt;_set_initial_slot_value</span>(
+            <span class="synIdentifier">$meta_instance</span>,
+            <span class="synIdentifier">$instance</span>,
+            <span class="synIdentifier">$params-&gt;{$init_arg}</span>,
+        );
+    }
+    <span class="synConditional">elsif</span> (<span class="synStatement">exists</span> <span class="synIdentifier">$self-&gt;{</span><span class="synString">'default'</span><span class="synIdentifier">}</span>) {
+        <span class="synIdentifier">$self-&gt;_set_initial_slot_value</span>(
+            <span class="synIdentifier">$meta_instance</span>,
+            <span class="synIdentifier">$instance</span>,
+            <span class="synIdentifier">$self-&gt;default</span>(<span class="synIdentifier">$instance</span>),
+        );
+    }
+    <span class="synConditional">elsif</span> (<span class="synOperator">defined</span>( <span class="synStatement">my</span> <span class="synIdentifier">$builder</span> = <span class="synIdentifier">$self-&gt;{</span><span class="synString">'builder'</span><span class="synIdentifier">}</span>)) {
+        <span class="synConditional">if</span> (<span class="synIdentifier">$builder</span> = <span class="synIdentifier">$instance-&gt;can</span>(<span class="synIdentifier">$builder</span>)) {
+            <span class="synIdentifier">$self-&gt;_set_initial_slot_value</span>(
+                <span class="synIdentifier">$meta_instance</span>,
+                <span class="synIdentifier">$instance</span>,
+                <span class="synIdentifier">$instance-&gt;$builder</span>,
+            );
+        }
+        <span class="synConditional">else</span> {
+            confess(<span class="synOperator">ref</span>(<span class="synIdentifier">$instance</span>).<span class="synString">&quot; does not support builder method '&quot;</span>. <span class="synIdentifier">$self-&gt;{</span><span class="synString">'builder'</span><span class="synIdentifier">}</span> .<span class="synString">&quot;' for attribute '&quot;</span> . <span class="synIdentifier">$self-&gt;name</span> . <span class="synString">&quot;'&quot;</span>);
+        }
+    }
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">_set_initial_slot_value </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$meta_instance</span>, <span class="synIdentifier">$instance</span>, <span class="synIdentifier">$value</span>) = <span class="synIdentifier">@_</span>;
+
+    <span class="synStatement">my</span> <span class="synIdentifier">$slot_name</span> = <span class="synIdentifier">$self-&gt;name</span>;
+
+    <span class="synStatement">return</span> <span class="synIdentifier">$meta_instance-&gt;set_slot_value</span>(<span class="synIdentifier">$instance</span>, <span class="synIdentifier">$slot_name</span>, <span class="synIdentifier">$value</span>)
+        <span class="synConditional">unless</span> <span class="synIdentifier">$self-&gt;has_initializer</span>;
+
+    <span class="synStatement">my</span> <span class="synIdentifier">$callback</span> = <span class="synIdentifier">$self-&gt;_make_initializer_writer_callback</span>(
+        <span class="synIdentifier">$meta_instance</span>, <span class="synIdentifier">$instance</span>, <span class="synIdentifier">$slot_name</span>
+    );
+
+    <span class="synStatement">my</span> <span class="synIdentifier">$initializer</span> = <span class="synIdentifier">$self-&gt;initializer</span>;
+
+    <span class="synComment"># most things will just want to set a value, so make it first arg</span>
+    <span class="synIdentifier">$instance-&gt;$initializer</span>(<span class="synIdentifier">$value</span>, <span class="synIdentifier">$callback</span>, <span class="synIdentifier">$self</span>);
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">_make_initializer_writer_callback </span>{
+    <span class="synStatement">my</span> <span class="synIdentifier">$self</span> = <span class="synStatement">shift</span>;
+    <span class="synStatement">my</span> (<span class="synIdentifier">$meta_instance</span>, <span class="synIdentifier">$instance</span>, <span class="synIdentifier">$slot_name</span>) = <span class="synIdentifier">@_</span>;
+
+    <span class="synStatement">return</span> <span class="synKeyword">sub </span>{
+        <span class="synIdentifier">$meta_instance-&gt;set_slot_value</span>(<span class="synIdentifier">$instance</span>, <span class="synIdentifier">$slot_name</span>, <span class="synIdentifier">$_[</span><span class="synNumber">0</span><span class="synIdentifier">]</span>);
+    };
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">get_read_method  </span>{
+    <span class="synStatement">my</span> <span class="synIdentifier">$self</span>   = <span class="synStatement">shift</span>;
+    <span class="synStatement">my</span> <span class="synIdentifier">$reader</span> = <span class="synIdentifier">$self-&gt;reader</span> || <span class="synIdentifier">$self-&gt;accessor</span>;
+    <span class="synComment"># normal case ...</span>
+    <span class="synStatement">return</span> <span class="synIdentifier">$reader</span> <span class="synConditional">unless</span> <span class="synOperator">ref</span> <span class="synIdentifier">$reader</span>;
+    <span class="synComment"># the HASH ref case</span>
+    <span class="synStatement">my</span> (<span class="synIdentifier">$name</span>) = <span class="synIdentifier">%$reader</span>;
+    <span class="synStatement">return</span> <span class="synIdentifier">$name</span>;
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">get_write_method </span>{
+    <span class="synStatement">my</span> <span class="synIdentifier">$self</span>   = <span class="synStatement">shift</span>;
+    <span class="synStatement">my</span> <span class="synIdentifier">$writer</span> = <span class="synIdentifier">$self-&gt;writer</span> || <span class="synIdentifier">$self-&gt;accessor</span>;
+    <span class="synComment"># normal case ...</span>
+    <span class="synStatement">return</span> <span class="synIdentifier">$writer</span> <span class="synConditional">unless</span> <span class="synOperator">ref</span> <span class="synIdentifier">$writer</span>;
+    <span class="synComment"># the HASH ref case</span>
+    <span class="synStatement">my</span> (<span class="synIdentifier">$name</span>) = <span class="synIdentifier">%$writer</span>;
+    <span class="synStatement">return</span> <span class="synIdentifier">$name</span>;
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">get_read_method_ref </span>{
+    <span class="synStatement">my</span> <span class="synIdentifier">$self</span> = <span class="synStatement">shift</span>;
+    <span class="synConditional">if</span> ((<span class="synStatement">my</span> <span class="synIdentifier">$reader</span> = <span class="synIdentifier">$self-&gt;get_read_method</span>) &amp;&amp; <span class="synIdentifier">$self-&gt;associated_class</span>) {
+        <span class="synStatement">return</span> <span class="synIdentifier">$self-&gt;associated_class-&gt;get_method</span>(<span class="synIdentifier">$reader</span>);
+    }
+    <span class="synConditional">else</span> {
+        <span class="synStatement">my</span> <span class="synIdentifier">$code</span> = <span class="synKeyword">sub </span>{ <span class="synIdentifier">$self-&gt;get_value</span>(<span class="synIdentifier">@_</span>) };
+        <span class="synConditional">if</span> (<span class="synStatement">my</span> <span class="synIdentifier">$class</span> = <span class="synIdentifier">$self-&gt;associated_class</span>) {
+            <span class="synStatement">return</span> <span class="synIdentifier">$class-&gt;method_metaclass-&gt;wrap</span>(
+                <span class="synIdentifier">$code</span>,
+                <span class="synString">package_name</span> =&gt; <span class="synIdentifier">$class-&gt;name</span>,
+                <span class="synString">name</span>         =&gt; <span class="synString">'__ANON__'</span>
+            );
+        }
+        <span class="synConditional">else</span> {
+            <span class="synStatement">return</span> <span class="synIdentifier">$code</span>;
+        }
+    }
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">get_write_method_ref </span>{
+    <span class="synStatement">my</span> <span class="synIdentifier">$self</span> = <span class="synStatement">shift</span>;
+    <span class="synConditional">if</span> ((<span class="synStatement">my</span> <span class="synIdentifier">$writer</span> = <span class="synIdentifier">$self-&gt;get_write_method</span>) &amp;&amp; <span class="synIdentifier">$self-&gt;associated_class</span>) {
+        <span class="synStatement">return</span> <span class="synIdentifier">$self-&gt;associated_class-&gt;get_method</span>(<span class="synIdentifier">$writer</span>);
+    }
+    <span class="synConditional">else</span> {
+        <span class="synStatement">my</span> <span class="synIdentifier">$code</span> = <span class="synKeyword">sub </span>{ <span class="synIdentifier">$self-&gt;set_value</span>(<span class="synIdentifier">@_</span>) };
+        <span class="synConditional">if</span> (<span class="synStatement">my</span> <span class="synIdentifier">$class</span> = <span class="synIdentifier">$self-&gt;associated_class</span>) {
+            <span class="synStatement">return</span> <span class="synIdentifier">$class-&gt;method_metaclass-&gt;wrap</span>(
+                <span class="synIdentifier">$code</span>,
+                <span class="synString">package_name</span> =&gt; <span class="synIdentifier">$class-&gt;name</span>,
+                <span class="synString">name</span>         =&gt; <span class="synString">'__ANON__'</span>
+            );
+        }
+        <span class="synConditional">else</span> {
+            <span class="synStatement">return</span> <span class="synIdentifier">$code</span>;
+        }
+    }
+}
+
+<span class="synComment"># slots</span>
+
+<span class="synKeyword">sub </span><span class="synFunction">slots </span>{ (<span class="synStatement">shift</span>)-&gt;name }
+
+<span class="synComment"># class association</span>
+
+<span class="synKeyword">sub </span><span class="synFunction">attach_to_class </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$class</span>) = <span class="synIdentifier">@_</span>;
+    (blessed(<span class="synIdentifier">$class</span>) &amp;&amp; <span class="synIdentifier">$class-&gt;isa</span>(<span class="synString">'Class::MOP::Class'</span>))
+        || confess <span class="synString">&quot;You must pass a Class::MOP::Class instance (or a subclass)&quot;</span>;
+    weaken(<span class="synIdentifier">$self-&gt;{</span><span class="synString">'associated_class'</span><span class="synIdentifier">}</span> = <span class="synIdentifier">$class</span>);
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">detach_from_class </span>{
+    <span class="synStatement">my</span> <span class="synIdentifier">$self</span> = <span class="synStatement">shift</span>;
+    <span class="synIdentifier">$self-&gt;{</span><span class="synString">'associated_class'</span><span class="synIdentifier">}</span> = <span class="synOperator">undef</span>;
+}
+
+<span class="synComment"># method association</span>
+
+<span class="synKeyword">sub </span><span class="synFunction">associate_method </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$method</span>) = <span class="synIdentifier">@_</span>;
+    <span class="synStatement">push</span> <span class="synIdentifier">@{$self-&gt;{</span><span class="synString">'associated_methods'</span><span class="synIdentifier">}}</span> =&gt; <span class="synIdentifier">$method</span>;
+}
+
+<span class="synComment">## Slot management</span>
+
+<span class="synKeyword">sub </span><span class="synFunction">set_initial_value </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$instance</span>, <span class="synIdentifier">$value</span>) = <span class="synIdentifier">@_</span>;
+    <span class="synIdentifier">$self-&gt;_set_initial_slot_value</span>(
+        Class::MOP::Class-&gt;initialize(<span class="synOperator">ref</span>(<span class="synIdentifier">$instance</span>))-&gt;get_meta_instance,
+        <span class="synIdentifier">$instance</span>,
+        <span class="synIdentifier">$value</span>
+    );
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">set_value </span>{ <span class="synStatement">shift</span>-&gt;set_raw_value(<span class="synIdentifier">@_</span>) }
+
+<span class="synKeyword">sub </span><span class="synFunction">set_raw_value </span>{
+    <span class="synStatement">my</span> <span class="synIdentifier">$self</span> = <span class="synStatement">shift</span>;
+    <span class="synStatement">my</span> (<span class="synIdentifier">$instance</span>, <span class="synIdentifier">$value</span>) = <span class="synIdentifier">@_</span>;
+
+    <span class="synStatement">my</span> <span class="synIdentifier">$mi</span> = Class::MOP::Class-&gt;initialize(<span class="synOperator">ref</span>(<span class="synIdentifier">$instance</span>))-&gt;get_meta_instance;
+    <span class="synStatement">return</span> <span class="synIdentifier">$mi-&gt;set_slot_value</span>(<span class="synIdentifier">$instance</span>, <span class="synIdentifier">$self-&gt;name</span>, <span class="synIdentifier">$value</span>);
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">_inline_set_value </span>{
+    <span class="synStatement">my</span> <span class="synIdentifier">$self</span> = <span class="synStatement">shift</span>;
+    <span class="synStatement">return</span> <span class="synIdentifier">$self-&gt;_inline_instance_set</span>(<span class="synIdentifier">@_</span>) . <span class="synString">';'</span>;
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">_inline_instance_set </span>{
+    <span class="synStatement">my</span> <span class="synIdentifier">$self</span> = <span class="synStatement">shift</span>;
+    <span class="synStatement">my</span> (<span class="synIdentifier">$instance</span>, <span class="synIdentifier">$value</span>) = <span class="synIdentifier">@_</span>;
+
+    <span class="synStatement">my</span> <span class="synIdentifier">$mi</span> = <span class="synIdentifier">$self-&gt;associated_class-&gt;get_meta_instance</span>;
+    <span class="synStatement">return</span> <span class="synIdentifier">$mi-&gt;inline_set_slot_value</span>(<span class="synIdentifier">$instance</span>, <span class="synIdentifier">$self-&gt;name</span>, <span class="synIdentifier">$value</span>);
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">get_value </span>{ <span class="synStatement">shift</span>-&gt;get_raw_value(<span class="synIdentifier">@_</span>) }
+
+<span class="synKeyword">sub </span><span class="synFunction">get_raw_value </span>{
+    <span class="synStatement">my</span> <span class="synIdentifier">$self</span> = <span class="synStatement">shift</span>;
+    <span class="synStatement">my</span> (<span class="synIdentifier">$instance</span>) = <span class="synIdentifier">@_</span>;
+
+    <span class="synStatement">my</span> <span class="synIdentifier">$mi</span> = Class::MOP::Class-&gt;initialize(<span class="synOperator">ref</span>(<span class="synIdentifier">$instance</span>))-&gt;get_meta_instance;
+    <span class="synStatement">return</span> <span class="synIdentifier">$mi-&gt;get_slot_value</span>(<span class="synIdentifier">$instance</span>, <span class="synIdentifier">$self-&gt;name</span>);
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">_inline_get_value </span>{
+    <span class="synStatement">my</span> <span class="synIdentifier">$self</span> = <span class="synStatement">shift</span>;
+    <span class="synStatement">return</span> <span class="synIdentifier">$self-&gt;_inline_instance_get</span>(<span class="synIdentifier">@_</span>) . <span class="synString">';'</span>;
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">_inline_instance_get </span>{
+    <span class="synStatement">my</span> <span class="synIdentifier">$self</span> = <span class="synStatement">shift</span>;
+    <span class="synStatement">my</span> (<span class="synIdentifier">$instance</span>) = <span class="synIdentifier">@_</span>;
+
+    <span class="synStatement">my</span> <span class="synIdentifier">$mi</span> = <span class="synIdentifier">$self-&gt;associated_class-&gt;get_meta_instance</span>;
+    <span class="synStatement">return</span> <span class="synIdentifier">$mi-&gt;inline_get_slot_value</span>(<span class="synIdentifier">$instance</span>, <span class="synIdentifier">$self-&gt;name</span>);
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">has_value </span>{
+    <span class="synStatement">my</span> <span class="synIdentifier">$self</span> = <span class="synStatement">shift</span>;
+    <span class="synStatement">my</span> (<span class="synIdentifier">$instance</span>) = <span class="synIdentifier">@_</span>;
+
+    <span class="synStatement">my</span> <span class="synIdentifier">$mi</span> = Class::MOP::Class-&gt;initialize(<span class="synOperator">ref</span>(<span class="synIdentifier">$instance</span>))-&gt;get_meta_instance;
+    <span class="synStatement">return</span> <span class="synIdentifier">$mi-&gt;is_slot_initialized</span>(<span class="synIdentifier">$instance</span>, <span class="synIdentifier">$self-&gt;name</span>);
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">_inline_has_value </span>{
+    <span class="synStatement">my</span> <span class="synIdentifier">$self</span> = <span class="synStatement">shift</span>;
+    <span class="synStatement">return</span> <span class="synIdentifier">$self-&gt;_inline_instance_has</span>(<span class="synIdentifier">@_</span>) . <span class="synString">';'</span>;
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">_inline_instance_has </span>{
+    <span class="synStatement">my</span> <span class="synIdentifier">$self</span> = <span class="synStatement">shift</span>;
+    <span class="synStatement">my</span> (<span class="synIdentifier">$instance</span>) = <span class="synIdentifier">@_</span>;
+
+    <span class="synStatement">my</span> <span class="synIdentifier">$mi</span> = <span class="synIdentifier">$self-&gt;associated_class-&gt;get_meta_instance</span>;
+    <span class="synStatement">return</span> <span class="synIdentifier">$mi-&gt;inline_is_slot_initialized</span>(<span class="synIdentifier">$instance</span>, <span class="synIdentifier">$self-&gt;name</span>);
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">clear_value </span>{
+    <span class="synStatement">my</span> <span class="synIdentifier">$self</span> = <span class="synStatement">shift</span>;
+    <span class="synStatement">my</span> (<span class="synIdentifier">$instance</span>) = <span class="synIdentifier">@_</span>;
+
+    <span class="synStatement">my</span> <span class="synIdentifier">$mi</span> = Class::MOP::Class-&gt;initialize(<span class="synOperator">ref</span>(<span class="synIdentifier">$instance</span>))-&gt;get_meta_instance;
+    <span class="synStatement">return</span> <span class="synIdentifier">$mi-&gt;deinitialize_slot</span>(<span class="synIdentifier">$instance</span>, <span class="synIdentifier">$self-&gt;name</span>);
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">_inline_clear_value </span>{
+    <span class="synStatement">my</span> <span class="synIdentifier">$self</span> = <span class="synStatement">shift</span>;
+    <span class="synStatement">return</span> <span class="synIdentifier">$self-&gt;_inline_instance_clear</span>(<span class="synIdentifier">@_</span>) . <span class="synString">';'</span>;
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">_inline_instance_clear </span>{
+    <span class="synStatement">my</span> <span class="synIdentifier">$self</span> = <span class="synStatement">shift</span>;
+    <span class="synStatement">my</span> (<span class="synIdentifier">$instance</span>) = <span class="synIdentifier">@_</span>;
+
+    <span class="synStatement">my</span> <span class="synIdentifier">$mi</span> = <span class="synIdentifier">$self-&gt;associated_class-&gt;get_meta_instance</span>;
+    <span class="synStatement">return</span> <span class="synIdentifier">$mi-&gt;inline_deinitialize_slot</span>(<span class="synIdentifier">$instance</span>, <span class="synIdentifier">$self-&gt;name</span>);
+}
+
+<span class="synComment">## load em up ...</span>
+
+<span class="synKeyword">sub </span><span class="synFunction">accessor_metaclass </span>{ <span class="synString">'Class::MOP::Method::Accessor'</span> }
+
+<span class="synKeyword">sub </span><span class="synFunction">_process_accessors </span>{
+    <span class="synStatement">my</span> (<span class="synIdentifier">$self</span>, <span class="synIdentifier">$type</span>, <span class="synIdentifier">$accessor</span>, <span class="synIdentifier">$generate_as_inline_methods</span>) = <span class="synIdentifier">@_</span>;
+
+    <span class="synStatement">my</span> <span class="synIdentifier">$method_ctx</span> = { <span class="synIdentifier">%{</span><span class="synperlVarBlock2"> </span><span class="synIdentifier">$self-&gt;definition_context</span><span class="synperlVarBlock2"> || {</span>}<span class="synperlVarBlock2"> </span><span class="synIdentifier">}</span> };
+
+    <span class="synConditional">if</span> (<span class="synOperator">ref</span>(<span class="synIdentifier">$accessor</span>)) {
+        (<span class="synOperator">ref</span>(<span class="synIdentifier">$accessor</span>) <span class="synOperator">eq</span> <span class="synString">'HASH'</span>)
+            || confess <span class="synString">&quot;bad accessor/reader/writer/predicate/clearer format, must be a HASH ref&quot;</span>;
+        <span class="synStatement">my</span> (<span class="synIdentifier">$name</span>, <span class="synIdentifier">$method</span>) = <span class="synIdentifier">%{$accessor}</span>;
+
+        <span class="synIdentifier">$method_ctx-&gt;{</span><span class="synString">description</span><span class="synIdentifier">}</span> = <span class="synIdentifier">$self-&gt;_accessor_description</span>(<span class="synIdentifier">$name</span>, <span class="synIdentifier">$type</span>);
+
+        <span class="synIdentifier">$method</span> = <span class="synIdentifier">$self-&gt;accessor_metaclass-&gt;wrap</span>(
+            <span class="synIdentifier">$method</span>,
+            <span class="synString">attribute</span>    =&gt; <span class="synIdentifier">$self</span>,
+            <span class="synString">package_name</span> =&gt; <span class="synIdentifier">$self-&gt;associated_class-&gt;name</span>,
+            <span class="synString">name</span>         =&gt; <span class="synIdentifier">$name</span>,
+            <span class="synString">associated_metaclass</span> =&gt; <span class="synIdentifier">$self-&gt;associated_class</span>,
+            <span class="synString">definition_context</span> =&gt; <span class="synIdentifier">$method_ctx</span>,
+        );
+        <span class="synIdentifier">$self-&gt;associate_method</span>(<span class="synIdentifier">$method</span>);
+        <span class="synStatement">return</span> (<span class="synIdentifier">$name</span>, <span class="synIdentifier">$method</span>);
+    }
+    <span class="synConditional">else</span> {
+        <span class="synStatement">my</span> <span class="synIdentifier">$inline_me</span> = (<span class="synIdentifier">$generate_as_inline_methods</span> &amp;&amp; <span class="synIdentifier">$self-&gt;associated_class-&gt;instance_metaclass-&gt;is_inlinable</span>);
+        <span class="synStatement">my</span> <span class="synIdentifier">$method</span>;
+        try {
+            <span class="synIdentifier">$method_ctx-&gt;{</span><span class="synString">description</span><span class="synIdentifier">}</span> = <span class="synIdentifier">$self-&gt;_accessor_description</span>(<span class="synIdentifier">$accessor</span>, <span class="synIdentifier">$type</span>);
+
+            <span class="synIdentifier">$method</span> = <span class="synIdentifier">$self-&gt;accessor_metaclass-&gt;new</span>(
+                <span class="synString">attribute</span>     =&gt; <span class="synIdentifier">$self</span>,
+                <span class="synString">is_inline</span>     =&gt; <span class="synIdentifier">$inline_me</span>,
+                <span class="synString">accessor_type</span> =&gt; <span class="synIdentifier">$type</span>,
+                <span class="synString">package_name</span>  =&gt; <span class="synIdentifier">$self-&gt;associated_class-&gt;name</span>,
+                <span class="synString">name</span>          =&gt; <span class="synIdentifier">$accessor</span>,
+                <span class="synString">associated_metaclass</span> =&gt; <span class="synIdentifier">$self-&gt;associated_class</span>,
+                <span class="synString">definition_context</span> =&gt; <span class="synIdentifier">$method_ctx</span>,
+            );
+        }
+        catch {
+            confess <span class="synString">&quot;Could not create the '</span><span class="synIdentifier">$type</span><span class="synString">' method for &quot;</span> . <span class="synIdentifier">$self-&gt;name</span> . <span class="synString">&quot; because : </span><span class="synIdentifier">$_</span><span class="synString">&quot;</span>;
+        };
+        <span class="synIdentifier">$self-&gt;associate_method</span>(<span class="synIdentifier">$method</span>);
+        <span class="synStatement">return</span> (<span class="synIdentifier">$accessor</span>, <span class="synIdentifier">$method</span>);
+    }
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">_accessor_description </span>{
+    <span class="synStatement">my</span> <span class="synIdentifier">$self</span> = <span class="synStatement">shift</span>;
+    <span class="synStatement">my</span> (<span class="synIdentifier">$name</span>, <span class="synIdentifier">$type</span>) = <span class="synIdentifier">@_</span>;
+
+    <span class="synStatement">my</span> <span class="synIdentifier">$desc</span> = <span class="synString">&quot;</span><span class="synIdentifier">$type</span><span class="synString"> &quot;</span> . <span class="synIdentifier">$self-&gt;associated_class-&gt;name</span> . <span class="synString">&quot;::</span><span class="synIdentifier">$name</span><span class="synString">&quot;</span>;
+    <span class="synConditional">if</span> ( <span class="synIdentifier">$name</span> <span class="synOperator">ne</span> <span class="synIdentifier">$self-&gt;name</span> ) {
+        <span class="synIdentifier">$desc</span> .= <span class="synString">&quot; of attribute &quot;</span> . <span class="synIdentifier">$self-&gt;name</span>;
+    }
+
+    <span class="synStatement">return</span> <span class="synIdentifier">$desc</span>;
+}
+
+<span class="synKeyword">sub </span><span class="synFunction">install_accessors </span>{
+    <span class="synStatement">my</span> <span class="synIdentifier">$self</span>   = <span class="synStatement">shift</span>;
+    <span class="synStatement">my</span> <span class="synIdentifier">$inline</span> = <span class="synStatement">shift</span>;
+    <span class="synStatement">my</span> <span class="synIdentifier">$class</span>  = <span class="synIdentifier">$self-&gt;associated_class</span>;
+
+    <span class="synIdentifier">$class-&gt;add_method</span>(
+        <span class="synIdentifier">$self-&gt;_process_accessors</span>(<span class="synString">'accessor'</span> =&gt; <span class="synIdentifier">$self-&gt;accessor</span>(), <span class="synIdentifier">$inline</span>)
+    ) <span class="synConditional">if</span> <span class="synIdentifier">$self-&gt;has_accessor</span>();
+
+    <span class="synIdentifier">$class-&gt;add_method</span>(
+        <span class="synIdentifier">$self-&gt;_process_accessors</span>(<span class="synString">'reader'</span> =&gt; <span class="synIdentifier">$self-&gt;reader</span>(), <span class="synIdentifier">$inline</span>)
+    ) <span class="synConditional">if</span> <span class="synIdentifier">$self-&gt;has_reader</span>();
+
+    <span class="synIdentifier">$class-&gt;add_method</span>(
+        <span class="synIdentifier">$self-&gt;_process_accessors</span>(<span class="synString">'writer'</span> =&gt; <span class="synIdentifier">$self-&gt;writer</span>(), <span class="synIdentifier">$inline</span>)
+    ) <span class="synConditional">if</span> <span class="synIdentifier">$self-&gt;has_writer</span>();
+
+    <span class="synIdentifier">$class-&gt;add_method</span>(
+        <span class="synIdentifier">$self-&gt;_process_accessors</span>(<span class="synString">'predicate'</span> =&gt; <span class="synIdentifier">$self-&gt;predicate</span>(), <span class="synIdentifier">$inline</span>)
+    ) <span class="synConditional">if</span> <span class="synIdentifier">$self-&gt;has_predicate</span>();
+
+    <span class="synIdentifier">$class-&gt;add_method</span>(
+        <span class="synIdentifier">$self-&gt;_process_accessors</span>(<span class="synString">'clearer'</span> =&gt; <span class="synIdentifier">$self-&gt;clearer</span>(), <span class="synIdentifier">$inline</span>)
+    ) <span class="synConditional">if</span> <span class="synIdentifier">$self-&gt;has_clearer</span>();
+
+    <span class="synStatement">return</span>;
+}
+
+{
+    <span class="synStatement">my</span> <span class="synIdentifier">$_remove_accessor</span> = <span class="synKeyword">sub </span>{
+        <span class="synStatement">my</span> (<span class="synIdentifier">$accessor</span>, <span class="synIdentifier">$class</span>) = <span class="synIdentifier">@_</span>;
+        <span class="synConditional">if</span> (<span class="synOperator">ref</span>(<span class="synIdentifier">$accessor</span>) &amp;&amp; <span class="synOperator">ref</span>(<span class="synIdentifier">$accessor</span>) <span class="synOperator">eq</span> <span class="synString">'HASH'</span>) {
+            (<span class="synIdentifier">$accessor</span>) = <span class="synStatement">keys</span> <span class="synIdentifier">%{$accessor}</span>;
+        }
+        <span class="synStatement">my</span> <span class="synIdentifier">$method</span> = <span class="synIdentifier">$class-&gt;get_method</span>(<span class="synIdentifier">$accessor</span>);
+        <span class="synIdentifier">$class-&gt;remove_method</span>(<span class="synIdentifier">$accessor</span>)
+            <span class="synConditional">if</span> (<span class="synOperator">ref</span>(<span class="synIdentifier">$method</span>) &amp;&amp; <span class="synIdentifier">$method-&gt;isa</span>(<span class="synString">'Class::MOP::Method::Accessor'</span>));
+    };
+
+    <span class="synKeyword">sub </span><span class="synFunction">remove_accessors </span>{
+        <span class="synStatement">my</span> <span class="synIdentifier">$self</span> = <span class="synStatement">shift</span>;
+        <span class="synComment"># </span><span class="synTodo">TODO:</span>
+        <span class="synComment"># we really need to make sure to remove from the</span>
+        <span class="synComment"># associates methods here as well. But this is</span>
+        <span class="synComment"># such a slimly used method, I am not worried</span>
+        <span class="synComment"># about it right now.</span>
+        <span class="synIdentifier">$_remove_accessor</span>-&gt;(<span class="synIdentifier">$self-&gt;accessor</span>(),  <span class="synIdentifier">$self-&gt;associated_class</span>()) <span class="synConditional">if</span> <span class="synIdentifier">$self-&gt;has_accessor</span>();
+        <span class="synIdentifier">$_remove_accessor</span>-&gt;(<span class="synIdentifier">$self-&gt;reader</span>(),    <span class="synIdentifier">$self-&gt;associated_class</span>()) <span class="synConditional">if</span> <span class="synIdentifier">$self-&gt;has_reader</span>();
+        <span class="synIdentifier">$_remove_accessor</span>-&gt;(<span class="synIdentifier">$self-&gt;writer</span>(),    <span class="synIdentifier">$self-&gt;associated_class</span>()) <span class="synConditional">if</span> <span class="synIdentifier">$self-&gt;has_writer</span>();
+        <span class="synIdentifier">$_remove_accessor</span>-&gt;(<span class="synIdentifier">$self-&gt;predicate</span>(), <span class="synIdentifier">$self-&gt;associated_class</span>()) <span class="synConditional">if</span> <span class="synIdentifier">$self-&gt;has_predicate</span>();
+        <span class="synIdentifier">$_remove_accessor</span>-&gt;(<span class="synIdentifier">$self-&gt;clearer</span>(),   <span class="synIdentifier">$self-&gt;associated_class</span>()) <span class="synConditional">if</span> <span class="synIdentifier">$self-&gt;has_clearer</span>();
+        <span class="synStatement">return</span>;
+    }
+
+}
+
+<span class="synNumber">1</span>;
+
+<span class="synComment"># ABSTRACT: Attribute Meta Object</span>
+
+<span class="synComment">__END__</span>
+
+<span class="synStatement">=pod</span>
+
+<span class="synStatement">=head1</span><span class="synString"> NAME</span>
+
+<span class="synperlPOD">Class::MOP::Attribute - Attribute Meta Object</span>
+
+<span class="synStatement">=head1</span><span class="synString"> VERSION</span>
+
+<span class="synperlPOD">version 2.1005</span>
+
+<span class="synStatement">=head1</span><span class="synString"> SYNOPSIS</span>
+
+<span class="synPreProc">  Class::MOP::Attribute-&gt;new(</span>
+<span class="synPreProc">      foo =&gt; (</span>
+<span class="synPreProc">          accessor  =&gt; 'foo',           # dual purpose get/set accessor</span>
+<span class="synPreProc">          predicate =&gt; 'has_foo',       # predicate check for defined-ness</span>
+<span class="synPreProc">          init_arg  =&gt; '-foo',          # class-&gt;new will look for a -foo key</span>
+<span class="synPreProc">          default   =&gt; 'BAR IS BAZ!'    # if no -foo key is provided, use this</span>
+<span class="synPreProc">      )</span>
+<span class="synPreProc">  );</span>
+
+<span class="synPreProc">  Class::MOP::Attribute-&gt;new(</span>
+<span class="synPreProc">      bar =&gt; (</span>
+<span class="synPreProc">          reader    =&gt; 'bar',           # getter</span>
+<span class="synPreProc">          writer    =&gt; 'set_bar',       # setter</span>
+<span class="synPreProc">          predicate =&gt; 'has_bar',       # predicate check for defined-ness</span>
+<span class="synPreProc">          init_arg  =&gt; ':bar',          # class-&gt;new will look for a :bar key</span>
+<span class="synPreProc">                                        # no default value means it is undef</span>
+<span class="synPreProc">      )</span>
+<span class="synPreProc">  );</span>
+
+<span class="synStatement">=head1</span><span class="synString"> DESCRIPTION</span>
+
+<span class="synperlPOD">The Attribute Protocol is almost entirely an invention of</span>
+<span class="synIdentifier">C&lt;Class::MOP&gt;</span><span class="synperlPOD">. Perl 5 does not have a consistent notion of</span>
+<span class="synperlPOD">attributes. There are so many ways in which this is done, and very few</span>
+<span class="synperlPOD">(if any) are easily discoverable by this module.</span>
+
+<span class="synperlPOD">With that said, this module attempts to inject some order into this</span>
+<span class="synperlPOD">chaos, by introducing a consistent API which can be used to create</span>
+<span class="synperlPOD">object attributes.</span>
+
+<span class="synStatement">=head1</span><span class="synString"> METHODS</span>
+
+<span class="synStatement">=head2</span><span class="synString"> Creation</span>
+
+<span class="synStatement">=over</span><span class="synperlPOD"> </span><span class="synNumber">4</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; Class::MOP::Attribute-&gt;new($name, ?%options) &gt;&gt;</span>
+
+<span class="synperlPOD">An attribute must (at the very least), have a </span><span class="synIdentifier">C&lt;$name&gt;</span><span class="synperlPOD">. All other</span>
+<span class="synIdentifier">C&lt;%options&gt;</span><span class="synperlPOD"> are added as key-value pairs.</span>
+
+<span class="synStatement">=over</span><span class="synperlPOD"> </span><span class="synNumber">8</span>
+
+<span class="synStatement">=item</span><span class="synString"> * init_arg</span>
+
+<span class="synperlPOD">This is a string value representing the expected key in an</span>
+<span class="synperlPOD">initialization hash. For instance, if we have an </span><span class="synIdentifier">C&lt;init_arg&gt;</span><span class="synperlPOD"> value of</span>
+<span class="synIdentifier">C&lt;-foo&gt;</span><span class="synperlPOD">, then the following code will Just Work.</span>
+
+<span class="synPreProc">  MyClass-&gt;meta-&gt;new_object( -foo =&gt; 'Hello There' );</span>
+
+<span class="synperlPOD">If an init_arg is not assigned, it will automatically use the</span>
+<span class="synperlPOD">attribute's name. If </span><span class="synIdentifier">C&lt;init_arg&gt;</span><span class="synperlPOD"> is explicitly set to </span><span class="synIdentifier">C&lt;undef&gt;</span><span class="synperlPOD">, the</span>
+<span class="synperlPOD">attribute cannot be specified during initialization.</span>
+
+<span class="synStatement">=item</span><span class="synString"> * builder</span>
+
+<span class="synperlPOD">This provides the name of a method that will be called to initialize</span>
+<span class="synperlPOD">the attribute. This method will be called on the object after it is</span>
+<span class="synperlPOD">constructed. It is expected to return a valid value for the attribute.</span>
+
+<span class="synStatement">=item</span><span class="synString"> * default</span>
+
+<span class="synperlPOD">This can be used to provide an explicit default for initializing the</span>
+<span class="synperlPOD">attribute. If the default you provide is a subroutine reference, then</span>
+<span class="synperlPOD">this reference will be called </span><span class="synIdentifier">I&lt;as a method&gt;</span><span class="synperlPOD"> on the object.</span>
+
+<span class="synperlPOD">If the value is a simple scalar (string or number), then it can be</span>
+<span class="synperlPOD">just passed as is. However, if you wish to initialize it with a HASH</span>
+<span class="synperlPOD">or ARRAY ref, then you need to wrap that inside a subroutine</span>
+<span class="synperlPOD">reference:</span>
+
+<span class="synPreProc">  Class::MOP::Attribute-&gt;new(</span>
+<span class="synPreProc">      'foo' =&gt; (</span>
+<span class="synPreProc">          default =&gt; sub { [] },</span>
+<span class="synPreProc">      )</span>
+<span class="synPreProc">  );</span>
+
+<span class="synPreProc">  # or ...</span>
+
+<span class="synPreProc">  Class::MOP::Attribute-&gt;new(</span>
+<span class="synPreProc">      'foo' =&gt; (</span>
+<span class="synPreProc">          default =&gt; sub { {} },</span>
+<span class="synPreProc">      )</span>
+<span class="synPreProc">  );</span>
+
+<span class="synperlPOD">If you wish to initialize an attribute with a subroutine reference</span>
+<span class="synperlPOD">itself, then you need to wrap that in a subroutine as well:</span>
+
+<span class="synPreProc">  Class::MOP::Attribute-&gt;new(</span>
+<span class="synPreProc">      'foo' =&gt; (</span>
+<span class="synPreProc">          default =&gt; sub {</span>
+<span class="synPreProc">              sub { print &quot;Hello World&quot; }</span>
+<span class="synPreProc">          },</span>
+<span class="synPreProc">      )</span>
+<span class="synPreProc">  );</span>
+
+<span class="synperlPOD">And lastly, if the value of your attribute is dependent upon some</span>
+<span class="synperlPOD">other aspect of the instance structure, then you can take advantage of</span>
+<span class="synperlPOD">the fact that when the </span><span class="synIdentifier">C&lt;default&gt;</span><span class="synperlPOD"> value is called as a method:</span>
+
+<span class="synPreProc">  Class::MOP::Attribute-&gt;new(</span>
+<span class="synPreProc">      'object_identity' =&gt; (</span>
+<span class="synPreProc">          default =&gt; sub { Scalar::Util::refaddr( $_[0] ) },</span>
+<span class="synPreProc">      )</span>
+<span class="synPreProc">  );</span>
+
+<span class="synperlPOD">Note that there is no guarantee that attributes are initialized in any</span>
+<span class="synperlPOD">particular order, so you cannot rely on the value of some other</span>
+<span class="synperlPOD">attribute when generating the default.</span>
+
+<span class="synStatement">=item</span><span class="synString"> * initializer</span>
+
+<span class="synperlPOD">This option can be either a method name or a subroutine</span>
+<span class="synperlPOD">reference. This method will be called when setting the attribute's</span>
+<span class="synperlPOD">value in the constructor. Unlike </span><span class="synIdentifier">C&lt;default&gt;</span><span class="synperlPOD"> and </span><span class="synIdentifier">C&lt;builder&gt;</span><span class="synperlPOD">, the</span>
+<span class="synperlPOD">initializer is only called when a value is provided to the</span>
+<span class="synperlPOD">constructor. The initializer allows you to munge this value during</span>
+<span class="synperlPOD">object construction.</span>
+
+<span class="synperlPOD">The initializer is called as a method with three arguments. The first</span>
+<span class="synperlPOD">is the value that was passed to the constructor. The second is a</span>
+<span class="synperlPOD">subroutine reference that can be called to actually set the</span>
+<span class="synperlPOD">attribute's value, and the last is the associated</span>
+<span class="synIdentifier">C&lt;Class::MOP::Attribute&gt;</span><span class="synperlPOD"> object.</span>
+
+<span class="synperlPOD">This contrived example shows an initializer that sets the attribute to</span>
+<span class="synperlPOD">twice the given value.</span>
+
+<span class="synPreProc">  Class::MOP::Attribute-&gt;new(</span>
+<span class="synPreProc">      'doubled' =&gt; (</span>
+<span class="synPreProc">          initializer =&gt; sub {</span>
+<span class="synPreProc">              my ( $self, $value, $set, $attr ) = @_;</span>
+<span class="synPreProc">              $set-&gt;( $value * 2 );</span>
+<span class="synPreProc">          },</span>
+<span class="synPreProc">      )</span>
+<span class="synPreProc">  );</span>
+
+<span class="synperlPOD">Since an initializer can be a method name, you can easily make</span>
+<span class="synperlPOD">attribute initialization use the writer:</span>
+
+<span class="synPreProc">  Class::MOP::Attribute-&gt;new(</span>
+<span class="synPreProc">      'some_attr' =&gt; (</span>
+<span class="synPreProc">          writer      =&gt; 'some_attr',</span>
+<span class="synPreProc">          initializer =&gt; 'some_attr',</span>
+<span class="synPreProc">      )</span>
+<span class="synPreProc">  );</span>
+
+<span class="synperlPOD">Your writer (actually, a wrapper around the writer, using</span>
+<span class="synIdentifier">L&lt;method modifications|Moose::Manual::MethodModifiers&gt;</span><span class="synperlPOD">) will need to examine</span>
+<span class="synIdentifier">C&lt;@_&gt;</span><span class="synperlPOD"> and determine under which</span>
+<span class="synperlPOD">context it is being called:</span>
+
+<span class="synPreProc">  around 'some_attr' =&gt; sub {</span>
+<span class="synPreProc">      my $orig = shift;</span>
+<span class="synPreProc">      my $self = shift;</span>
+<span class="synPreProc">      # $value is not defined if being called as a reader</span>
+<span class="synPreProc">      # $setter and $attr are only defined if being called as an initializer</span>
+<span class="synPreProc">      my ($value, $setter, $attr) = @_;</span>
+
+<span class="synPreProc">      # the reader behaves normally</span>
+<span class="synPreProc">      return $self-&gt;$orig if not @_;</span>
+
+<span class="synPreProc">      # mutate $value as desired</span>
+<span class="synPreProc">      # $value = &lt;something($value);</span>
+
+<span class="synPreProc">      # if called as an initializer, set the value and we're done</span>
+<span class="synPreProc">      return $setter-&gt;($row) if $setter;</span>
+
+<span class="synPreProc">      # otherwise, call the real writer with the new value</span>
+<span class="synPreProc">      $self-&gt;$orig($row);</span>
+<span class="synPreProc">  };</span>
+
+<span class="synStatement">=back</span>
+
+<span class="synperlPOD">The </span><span class="synIdentifier">C&lt;accessor&gt;</span><span class="synperlPOD">, </span><span class="synIdentifier">C&lt;reader&gt;</span><span class="synperlPOD">, </span><span class="synIdentifier">C&lt;writer&gt;</span><span class="synperlPOD">, </span><span class="synIdentifier">C&lt;predicate&gt;</span><span class="synperlPOD"> and </span><span class="synIdentifier">C&lt;clearer&gt;</span>
+<span class="synperlPOD">options all accept the same parameters. You can provide the name of</span>
+<span class="synperlPOD">the method, in which case an appropriate default method will be</span>
+<span class="synperlPOD">generated for you. Or instead you can also provide hash reference</span>
+<span class="synperlPOD">containing exactly one key (the method name) and one value. The value</span>
+<span class="synperlPOD">should be a subroutine reference, which will be installed as the</span>
+<span class="synperlPOD">method itself.</span>
+
+<span class="synStatement">=over</span><span class="synperlPOD"> </span><span class="synNumber">8</span>
+
+<span class="synStatement">=item</span><span class="synString"> * accessor</span>
+
+<span class="synperlPOD">An </span><span class="synIdentifier">C&lt;accessor&gt;</span><span class="synperlPOD"> is a standard Perl-style read/write accessor. It will</span>
+<span class="synperlPOD">return the value of the attribute, and if a value is passed as an</span>
+<span class="synperlPOD">argument, it will assign that value to the attribute.</span>
+
+<span class="synperlPOD">Note that </span><span class="synIdentifier">C&lt;undef&gt;</span><span class="synperlPOD"> is a legitimate value, so this will work:</span>
+
+<span class="synPreProc">  $object-&gt;set_something(undef);</span>
+
+<span class="synStatement">=item</span><span class="synString"> * reader</span>
+
+<span class="synperlPOD">This is a basic read-only accessor. It returns the value of the</span>
+<span class="synperlPOD">attribute.</span>
+
+<span class="synStatement">=item</span><span class="synString"> * writer</span>
+
+<span class="synperlPOD">This is a basic write accessor, it accepts a single argument, and</span>
+<span class="synperlPOD">assigns that value to the attribute.</span>
+
+<span class="synperlPOD">Note that </span><span class="synIdentifier">C&lt;undef&gt;</span><span class="synperlPOD"> is a legitimate value, so this will work:</span>
+
+<span class="synPreProc">  $object-&gt;set_something(undef);</span>
+
+<span class="synStatement">=item</span><span class="synString"> * predicate</span>
+
+<span class="synperlPOD">The predicate method returns a boolean indicating whether or not the</span>
+<span class="synperlPOD">attribute has been explicitly set.</span>
+
+<span class="synperlPOD">Note that the predicate returns true even if the attribute was set to</span>
+<span class="synperlPOD">a false value (</span><span class="synIdentifier">C&lt;0&gt;</span><span class="synperlPOD"> or </span><span class="synIdentifier">C&lt;undef&gt;</span><span class="synperlPOD">).</span>
+
+<span class="synStatement">=item</span><span class="synString"> * clearer</span>
+
+<span class="synperlPOD">This method will uninitialize the attribute. After an attribute is</span>
+<span class="synperlPOD">cleared, its </span><span class="synIdentifier">C&lt;predicate&gt;</span><span class="synperlPOD"> will return false.</span>
+
+<span class="synStatement">=item</span><span class="synString"> * definition_context</span>
+
+<span class="synperlPOD">Mostly, this exists as a hook for the benefit of Moose.</span>
+
+<span class="synperlPOD">This option should be a hash reference containing several keys which</span>
+<span class="synperlPOD">will be used when inlining the attribute's accessors. The keys should</span>
+<span class="synperlPOD">include </span><span class="synIdentifier">C&lt;line&gt;</span><span class="synperlPOD">, the line number where the attribute was created, and</span>
+<span class="synperlPOD">either </span><span class="synIdentifier">C&lt;file&gt;</span><span class="synperlPOD"> or </span><span class="synIdentifier">C&lt;description&gt;</span><span class="synperlPOD">.</span>
+
+<span class="synperlPOD">This information will ultimately be used when eval'ing inlined</span>
+<span class="synperlPOD">accessor code so that error messages report a useful line and file</span>
+<span class="synperlPOD">name.</span>
+
+<span class="synStatement">=back</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;clone(%options) &gt;&gt;</span>
+
+<span class="synperlPOD">This clones the attribute. Any options you provide will override the</span>
+<span class="synperlPOD">settings of the original attribute. You can change the name of the new</span>
+<span class="synperlPOD">attribute by passing a </span><span class="synIdentifier">C&lt;name&gt;</span><span class="synperlPOD"> key in </span><span class="synIdentifier">C&lt;%options&gt;</span><span class="synperlPOD">.</span>
+
+<span class="synStatement">=back</span>
+
+<span class="synStatement">=head2</span><span class="synString"> Informational</span>
+
+<span class="synperlPOD">These are all basic read-only accessors for the values passed into</span>
+<span class="synperlPOD">the constructor.</span>
+
+<span class="synStatement">=over</span><span class="synperlPOD"> </span><span class="synNumber">4</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;name &gt;&gt;</span>
+
+<span class="synperlPOD">Returns the attribute's name.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;accessor &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;reader &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;writer &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;predicate &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;clearer &gt;&gt;</span>
+
+<span class="synperlPOD">The </span><span class="synIdentifier">C&lt;accessor&gt;</span><span class="synperlPOD">, </span><span class="synIdentifier">C&lt;reader&gt;</span><span class="synperlPOD">, </span><span class="synIdentifier">C&lt;writer&gt;</span><span class="synperlPOD">, </span><span class="synIdentifier">C&lt;predicate&gt;</span><span class="synperlPOD">, and </span><span class="synIdentifier">C&lt;clearer&gt;</span>
+<span class="synperlPOD">methods all return exactly what was passed to the constructor, so it</span>
+<span class="synperlPOD">can be either a string containing a method name, or a hash reference.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;initializer &gt;&gt;</span>
+
+<span class="synperlPOD">Returns the initializer as passed to the constructor, so this may be</span>
+<span class="synperlPOD">either a method name or a subroutine reference.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;init_arg &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;is_default_a_coderef &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;builder &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;default($instance) &gt;&gt;</span>
+
+<span class="synperlPOD">The </span><span class="synIdentifier">C&lt;$instance&gt;</span><span class="synperlPOD"> argument is optional. If you don't pass it, the</span>
+<span class="synperlPOD">return value for this method is exactly what was passed to the</span>
+<span class="synperlPOD">constructor, either a simple scalar or a subroutine reference.</span>
+
+<span class="synperlPOD">If you </span><span class="synIdentifier">I&lt;do&gt;</span><span class="synperlPOD"> pass an </span><span class="synIdentifier">C&lt;$instance&gt;</span><span class="synperlPOD"> and the default is a subroutine</span>
+<span class="synperlPOD">reference, then the reference is called as a method on the</span>
+<span class="synIdentifier">C&lt;$instance&gt;</span><span class="synperlPOD"> and the generated value is returned.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;slots &gt;&gt;</span>
+
+<span class="synperlPOD">Return a list of slots required by the attribute. This is usually just</span>
+<span class="synperlPOD">one, the name of the attribute.</span>
+
+<span class="synperlPOD">A slot is the name of the hash key used to store the attribute in an</span>
+<span class="synperlPOD">object instance.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;get_read_method &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;get_write_method &gt;&gt;</span>
+
+<span class="synperlPOD">Returns the name of a method suitable for reading or writing the value</span>
+<span class="synperlPOD">of the attribute in the associated class.</span>
+
+<span class="synperlPOD">If an attribute is read- or write-only, then these methods can return</span>
+<span class="synIdentifier">C&lt;undef&gt;</span><span class="synperlPOD"> as appropriate.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;has_read_method &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;has_write_method &gt;&gt;</span>
+
+<span class="synperlPOD">This returns a boolean indicating whether the attribute has a </span><span class="synIdentifier">I&lt;named&gt;</span>
+<span class="synperlPOD">read or write method.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;get_read_method_ref &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;get_write_method_ref &gt;&gt;</span>
+
+<span class="synperlPOD">Returns the subroutine reference of a method suitable for reading or</span>
+<span class="synperlPOD">writing the attribute's value in the associated class. These methods</span>
+<span class="synperlPOD">always return a subroutine reference, regardless of whether or not the</span>
+<span class="synperlPOD">attribute is read- or write-only.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;insertion_order &gt;&gt;</span>
+
+<span class="synperlPOD">If this attribute has been inserted into a class, this returns a zero</span>
+<span class="synperlPOD">based index regarding the order of insertion.</span>
+
+<span class="synStatement">=back</span>
+
+<span class="synStatement">=head2</span><span class="synString"> Informational predicates</span>
+
+<span class="synperlPOD">These are all basic predicate methods for the values passed into </span><span class="synIdentifier">C&lt;new&gt;</span><span class="synperlPOD">.</span>
+
+<span class="synStatement">=over</span><span class="synperlPOD"> </span><span class="synNumber">4</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;has_accessor &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;has_reader &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;has_writer &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;has_predicate &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;has_clearer &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;has_initializer &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;has_init_arg &gt;&gt;</span>
+
+<span class="synperlPOD">This will be </span><span class="synIdentifier">I&lt;false&gt;</span><span class="synperlPOD"> if the </span><span class="synIdentifier">C&lt;init_arg&gt;</span><span class="synperlPOD"> was set to </span><span class="synIdentifier">C&lt;undef&gt;</span><span class="synperlPOD">.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;has_default &gt;&gt;</span>
+
+<span class="synperlPOD">This will be </span><span class="synIdentifier">I&lt;false&gt;</span><span class="synperlPOD"> if the </span><span class="synIdentifier">C&lt;default&gt;</span><span class="synperlPOD"> was set to </span><span class="synIdentifier">C&lt;undef&gt;</span><span class="synperlPOD">, since</span>
+<span class="synIdentifier">C&lt;undef&gt;</span><span class="synperlPOD"> is the default </span><span class="synIdentifier">C&lt;default&gt;</span><span class="synperlPOD"> anyway.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;has_builder &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;has_insertion_order &gt;&gt;</span>
+
+<span class="synperlPOD">This will be </span><span class="synIdentifier">I&lt;false&gt;</span><span class="synperlPOD"> if this attribute has not be inserted into a class</span>
+
+<span class="synStatement">=back</span>
+
+<span class="synStatement">=head2</span><span class="synString"> Value management</span>
+
+<span class="synperlPOD">These methods are basically &quot;back doors&quot; to the instance, and can be</span>
+<span class="synperlPOD">used to bypass the regular accessors, but still stay within the MOP.</span>
+
+<span class="synperlPOD">These methods are not for general use, and should only be used if you</span>
+<span class="synperlPOD">really know what you are doing.</span>
+
+<span class="synStatement">=over</span><span class="synperlPOD"> </span><span class="synNumber">4</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;initialize_instance_slot($meta_instance, $instance, $params) &gt;&gt;</span>
+
+<span class="synperlPOD">This method is used internally to initialize the attribute's slot in</span>
+<span class="synperlPOD">the object </span><span class="synIdentifier">C&lt;$instance&gt;</span><span class="synperlPOD">.</span>
+
+<span class="synperlPOD">The </span><span class="synIdentifier">C&lt;$params&gt;</span><span class="synperlPOD"> is a hash reference of the values passed to the object</span>
+<span class="synperlPOD">constructor.</span>
+
+<span class="synperlPOD">It's unlikely that you'll need to call this method yourself.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;set_value($instance, $value) &gt;&gt;</span>
+
+<span class="synperlPOD">Sets the value without going through the accessor. Note that this</span>
+<span class="synperlPOD">works even with read-only attributes.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;set_raw_value($instance, $value) &gt;&gt;</span>
+
+<span class="synperlPOD">Sets the value with no side effects such as a trigger.</span>
+
+<span class="synperlPOD">This doesn't actually apply to Class::MOP attributes, only to subclasses.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;set_initial_value($instance, $value) &gt;&gt;</span>
+
+<span class="synperlPOD">Sets the value without going through the accessor. This method is only</span>
+<span class="synperlPOD">called when the instance is first being initialized.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;get_value($instance) &gt;&gt;</span>
+
+<span class="synperlPOD">Returns the value without going through the accessor. Note that this</span>
+<span class="synperlPOD">works even with write-only accessors.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;get_raw_value($instance) &gt;&gt;</span>
+
+<span class="synperlPOD">Returns the value without any side effects such as lazy attributes.</span>
+
+<span class="synperlPOD">Doesn't actually apply to Class::MOP attributes, only to subclasses.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;has_value($instance) &gt;&gt;</span>
+
+<span class="synperlPOD">Return a boolean indicating whether the attribute has been set in</span>
+<span class="synIdentifier">C&lt;$instance&gt;</span><span class="synperlPOD">. This how the default </span><span class="synIdentifier">C&lt;predicate&gt;</span><span class="synperlPOD"> method works.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;clear_value($instance) &gt;&gt;</span>
+
+<span class="synperlPOD">This will clear the attribute's value in </span><span class="synIdentifier">C&lt;$instance&gt;</span><span class="synperlPOD">. This is what</span>
+<span class="synperlPOD">the default </span><span class="synIdentifier">C&lt;clearer&gt;</span><span class="synperlPOD"> calls.</span>
+
+<span class="synperlPOD">Note that this works even if the attribute does not have any</span>
+<span class="synperlPOD">associated read, write or clear methods.</span>
+
+<span class="synStatement">=back</span>
+
+<span class="synStatement">=head2</span><span class="synString"> Class association</span>
+
+<span class="synperlPOD">These methods allow you to manage the attributes association with</span>
+<span class="synperlPOD">the class that contains it. These methods should not be used</span>
+<span class="synperlPOD">lightly, nor are they very magical, they are mostly used internally</span>
+<span class="synperlPOD">and by metaclass instances.</span>
+
+<span class="synStatement">=over</span><span class="synperlPOD"> </span><span class="synNumber">4</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;associated_class &gt;&gt;</span>
+
+<span class="synperlPOD">This returns the </span><span class="synIdentifier">C&lt;Class::MOP::Class&gt;</span><span class="synperlPOD"> with which this attribute is</span>
+<span class="synperlPOD">associated, if any.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;attach_to_class($metaclass) &gt;&gt;</span>
+
+<span class="synperlPOD">This method stores a weakened reference to the </span><span class="synIdentifier">C&lt;$metaclass&gt;</span><span class="synperlPOD"> object</span>
+<span class="synperlPOD">internally.</span>
+
+<span class="synperlPOD">This method does not remove the attribute from its old class,</span>
+<span class="synperlPOD">nor does it create any accessors in the new class.</span>
+
+<span class="synperlPOD">It is probably best to use the </span><span class="synIdentifier">L&lt;Class::MOP::Class&gt;</span><span class="synperlPOD"> </span><span class="synIdentifier">C&lt;add_attribute&gt;</span>
+<span class="synperlPOD">method instead.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;detach_from_class &gt;&gt;</span>
+
+<span class="synperlPOD">This method removes the associate metaclass object from the attribute</span>
+<span class="synperlPOD">it has one.</span>
+
+<span class="synperlPOD">This method does not remove the attribute itself from the class, or</span>
+<span class="synperlPOD">remove its accessors.</span>
+
+<span class="synperlPOD">It is probably best to use the </span><span class="synIdentifier">L&lt;Class::MOP::Class&gt;</span>
+<span class="synIdentifier">C&lt;remove_attribute&gt;</span><span class="synperlPOD"> method instead.</span>
+
+<span class="synStatement">=back</span>
+
+<span class="synStatement">=head2</span><span class="synString"> Attribute Accessor generation</span>
+
+<span class="synStatement">=over</span><span class="synperlPOD"> </span><span class="synNumber">4</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;accessor_metaclass &gt;&gt;</span>
+
+<span class="synperlPOD">Accessor methods are generated using an accessor metaclass. By</span>
+<span class="synperlPOD">default, this is </span><span class="synIdentifier">L&lt;Class::MOP::Method::Accessor&gt;</span><span class="synperlPOD">. This method returns</span>
+<span class="synperlPOD">the name of the accessor metaclass that this attribute uses.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;associate_method($method) &gt;&gt;</span>
+
+<span class="synperlPOD">This associates a </span><span class="synIdentifier">L&lt;Class::MOP::Method&gt;</span><span class="synperlPOD"> object with the</span>
+<span class="synperlPOD">attribute. Typically, this is called internally when an attribute</span>
+<span class="synperlPOD">generates its accessors.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;associated_methods &gt;&gt;</span>
+
+<span class="synperlPOD">This returns the list of methods which have been associated with the</span>
+<span class="synperlPOD">attribute.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;install_accessors &gt;&gt;</span>
+
+<span class="synperlPOD">This method generates and installs code the attributes various</span>
+<span class="synperlPOD">accessors. It is typically called from the </span><span class="synIdentifier">L&lt;Class::MOP::Class&gt;</span>
+<span class="synIdentifier">C&lt;add_attribute&gt;</span><span class="synperlPOD"> method.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;remove_accessors &gt;&gt;</span>
+
+<span class="synperlPOD">This method removes all of the accessors associated with the</span>
+<span class="synperlPOD">attribute.</span>
+
+<span class="synperlPOD">This does not currently remove methods from the list returned by</span>
+<span class="synIdentifier">C&lt;associated_methods&gt;</span><span class="synperlPOD">.</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;inline_get &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;inline_set &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;inline_has &gt;&gt;</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; $attr-&gt;inline_clear &gt;&gt;</span>
+
+<span class="synperlPOD">These methods return a code snippet suitable for inlining the relevant</span>
+<span class="synperlPOD">operation. They expect strings containing variable names to be used in the</span>
+<span class="synperlPOD">inlining, like </span><span class="synIdentifier">C&lt;'$self'&gt;</span><span class="synperlPOD"> or </span><span class="synIdentifier">C&lt;'$_[1]'&gt;</span><span class="synperlPOD">.</span>
+
+<span class="synStatement">=back</span>
+
+<span class="synStatement">=head2</span><span class="synString"> Introspection</span>
+
+<span class="synStatement">=over</span><span class="synperlPOD"> </span><span class="synNumber">4</span>
+
+<span class="synStatement">=item</span><span class="synString"> </span><span class="synIdentifier">B&lt;&lt; Class::MOP::Attribute-&gt;meta &gt;&gt;</span>
+
+<span class="synperlPOD">This will return a </span><span class="synIdentifier">L&lt;Class::MOP::Class&gt;</span><span class="synperlPOD"> instance for this class.</span>
+
+<span class="synperlPOD">It should also be noted that </span><span class="synIdentifier">L&lt;Class::MOP&gt;</span><span class="synperlPOD"> will actually bootstrap</span>
+<span class="synperlPOD">this module by installing a number of attribute meta-objects into its</span>
+<span class="synperlPOD">metaclass.</span>
+
+<span class="synStatement">=back</span>
+
+<span class="synStatement">=head1</span><span class="synString"> AUTHOR</span>
+
+<span class="synperlPOD">Moose is maintained by the Moose Cabal, along with the help of many contributors. See </span><span class="synIdentifier">L&lt;Moose/CABAL&gt;</span><span class="synperlPOD"> and </span><span class="synIdentifier">L&lt;Moose/CONTRIBUTORS&gt;</span><span class="synperlPOD"> for details.</span>
+
+<span class="synStatement">=head1</span><span class="synString"> COPYRIGHT AND LICENSE</span>
+
+<span class="synperlPOD">This software is copyright (c) 2013 by Infinity Interactive, Inc..</span>
+
+<span class="synperlPOD">This is free software; you can redistribute it and/or modify it under</span>
+<span class="synperlPOD">the same terms as the Perl 5 programming language system itself.</span>
+
+<span class="synStatement">=cut</span>
+</pre>
+
+ </body>
+</html>
